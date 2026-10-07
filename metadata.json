@@ -1,0 +1,6 @@
+{
+  "name": "VitalTrack",
+  "description": "Ứng dụng theo dõi sức khỏe cá nhân (VitalTrack) với ReactJS và Node.js Express",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
