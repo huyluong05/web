@@ -1,5 +1,7 @@
 // Standard API Base URL
-const API_BASE_URL = import.meta.env?.VITE_API_URL || "/api";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL || "/api"
+).replace(/\/+$/, "");
 function getAuthHeader() {
   const token = localStorage.getItem("vitaltrack_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -11,7 +13,7 @@ async function request(endpoint, options = {}) {
     ...(options.headers || {}),
   };
   try {
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = `${API_BASE_URL}/${endpoint.replace(/^\/+/, "")}`;
 
     console.log("[API] Request:", url);
 
