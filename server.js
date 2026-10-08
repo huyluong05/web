@@ -27,6 +27,12 @@ function getGeminiAI() {
 let mysqlPool = null;
 export function getMySQLPool() {
     if (!mysqlPool) {
+        const sslCa = process.env.MYSQL_SSL_CA?.replace(/\\n/g, "\n");
+        const ssl = sslCa
+            ? { ca: sslCa, rejectUnauthorized: true }
+            : process.env.MYSQL_SSL === "true"
+              ? { rejectUnauthorized: true }
+              : undefined;
         mysqlPool = mysql.createPool({
             host: process.env.MYSQL_HOST || "localhost",
             port: parseInt(process.env.MYSQL_PORT || "3306", 10),
@@ -37,6 +43,7 @@ export function getMySQLPool() {
             connectionLimit: 10,
             queueLimit: 0,
             connectTimeout: 5000,
+            ...(ssl ? { ssl } : {}),
         });
     }
     return mysqlPool;
@@ -918,8 +925,14 @@ function sanitizeUser(user) {
 async function startServer() {
     const app = express();
     // Basic Middlewares
+    const configuredOrigins = (process.env.CORS_ORIGINS || "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean);
     app.use(cors({
-        origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "*"],
+        // With no CORS_ORIGINS configured, preserve the existing permissive
+        // local behavior. Production can provide a comma-separated allowlist.
+        origin: configuredOrigins.length > 0 ? configuredOrigins : true,
         credentials: true,
     }));
     app.use(express.json());

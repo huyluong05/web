@@ -11,16 +11,43 @@ async function request(endpoint, options = {}) {
     ...(options.headers || {}),
   };
   try {
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    console.log("[API] Request:", url);
+
+    const res = await fetch(url, {
       ...options,
       headers,
     });
-    const data = await res.json();
+
+    const rawResponse = await res.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(rawResponse);
+    } catch {
+      data = {
+        success: false,
+        message: rawResponse || "Backend không trả về JSON hợp lệ",
+      };
+    }
+
     if (!res.ok) {
+      console.error("[API] HTTP Error:", {
+        url,
+        status: res.status,
+        response: data,
+      });
+
       throw new Error(data.message || `Lỗi yêu cầu: ${res.status}`);
     }
+
     return data;
+
   } catch (error) {
+    console.error("[API] Request failed:", error);
+
     return {
       success: false,
       message: error.message || "Lỗi kết nối máy chủ",
