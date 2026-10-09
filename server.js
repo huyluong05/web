@@ -2397,7 +2397,37 @@ async function startServer() {
             });
         }
     });
-    
+
+    // Admin - Lấy danh sách tất cả thiết bị
+    app.get("/api/admin/devices", authenticateJWT, requireAdmin, async (req, res) => {
+        try {
+            const pool = getMySQLPool();
+
+            const [devices] = await pool.query(`
+            SELECT
+                d.*,
+                u.full_name AS user_name,
+                u.email AS user_email
+            FROM connected_devices d
+            LEFT JOIN users u ON d.user_id = u.id
+            ORDER BY d.created_at DESC
+        `);
+
+            return res.status(200).json({
+                success: true,
+                data: devices
+            });
+
+        } catch (error) {
+            console.error("Error GET /api/admin/devices:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Không thể tải danh sách thiết bị."
+            });
+        }
+    });
+
     // Admin Dashboard Statistics
     app.get("/api/admin/dashboard", authenticateJWT, requireAdmin, async (req, res) => {
         try {
