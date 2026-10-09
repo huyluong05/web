@@ -2285,6 +2285,119 @@ async function startServer() {
     // ADMIN ROUTES (/api/admin)
     // Protected by authenticateJWT + requireAdmin
     // ==========================================
+
+    // Admin - Cấp phát thiết bị cho người dùng
+    app.post("/api/admin/devices", authenticateJWT, requireAdmin, async (req, res) => {
+        try {
+            const {
+                userId,
+                name,
+                type,
+                model,
+                macAddress,
+                firmwareVersion
+            } = req.body || {};
+
+            const targetUserId = Number(userId);
+            const deviceName = String(name || "").trim();
+
+            const typeMap = {
+                blood_pressure: "blood_pressure_monitor",
+                blood_pressure_monitor: "blood_pressure_monitor",
+                smartwatch: "smartwatch",
+                smart_scale: "smart_scale",
+                spo2_sensor: "pulse_oximeter",
+                pulse_oximeter: "pulse_oximeter",
+                glucose_meter: "glucose_meter"
+            };
+
+            const normalizedType = typeMap[type];
+
+            if (!Number.isSafeInteger(targetUserId) || targetUserId <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "ID người dùng không hợp lệ."
+                });
+            }
+
+            if (!deviceName || deviceName.length > 150 || !normalizedType) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Tên hoặc loại thiết bị không hợp lệ."
+                });
+            }
+
+            const pool = getMySQLPool();
+
+            const [users] = await pool.execute(
+                "SELECT id FROM users WHERE id = ?",
+                [targetUserId]
+            );
+
+            if (users.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Không tìm thấy người dùng được cấp phát thiết bị."
+                });
+            }
+
+            const deviceId = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+            const deviceModel = String(model || "Standard BLE Peripheral").trim();
+            const mac = String(macAddress || "").trim();
+            const firmware = String(firmwareVersion || "v1.0.0").trim();
+
+            if (deviceModel.length > 100 || mac.length > 50 || firmware.length > 50) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Thông tin thiết bị vượt quá độ dài cho phép."
+                });
+            }
+
+            await pool.execute(
+                `INSERT INTO connected_devices
+             (id, user_id, name, type, model, battery_level,
+              status, last_sync_time, mac_address, firmware_version)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
+                [
+                    deviceId,
+                    targetUserId,
+                    deviceName,
+                    normalizedType,
+                    deviceModel,
+                    100,
+                    "connected",
+                    mac,
+                    firmware
+                ]
+            );
+
+            return res.status(201).json({
+                success: true,
+                message: "Cấp phát thiết bị thành công.",
+                data: {
+                    id: deviceId,
+                    user_id: targetUserId,
+                    name: deviceName,
+                    type: normalizedType,
+                    model: deviceModel,
+                    batteryLevel: 100,
+                    status: "connected",
+                    macAddress: mac,
+                    firmwareVersion: firmware
+                }
+            });
+
+        } catch (error) {
+            console.error("Error POST /api/admin/devices:", error);
+
+            return res.status(500).json({
+                success: false,
+                message: "Lỗi máy chủ khi cấp phát thiết bị."
+            });
+        }
+    });
+    
     // Admin Dashboard Statistics
     app.get("/api/admin/dashboard", authenticateJWT, requireAdmin, async (req, res) => {
         try {

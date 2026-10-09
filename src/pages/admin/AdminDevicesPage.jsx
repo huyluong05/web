@@ -29,7 +29,7 @@ const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newDevice, setNewDevice] = useState({
     userId: 1,
     name: "Omron Complete HEM-7600T",
-    type: "blood_pressure",
+    type: "blood_pressure_monitor",
     model: "HEM-7600T Smart BLE",
     macAddress: "F0:B5:D1:44:88:AA",
     firmwareVersion: "v2.4.1",
