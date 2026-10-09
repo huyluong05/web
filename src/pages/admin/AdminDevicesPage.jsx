@@ -193,7 +193,7 @@ const [isAddModalOpen, setIsAddModalOpen] = useState(false);
         >
           <AnimatePresence>
             {filteredDevices.map((dev) => {
-              const isBp = dev.type === "blood_pressure";
+              const isBp = dev.type === "blood_pressure_monitor";
               const isScale = dev.type === "smart_scale";
               return (
                 <motion.div
@@ -350,10 +350,10 @@ const [isAddModalOpen, setIsAddModalOpen] = useState(false);
                 }
                 className="w-full bg-white border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-md px-3 py-2 text-sm cursor-pointer transition-all"
               >
-                <option value="blood_pressure">Máy đo huyết áp</option>
+                <option value="blood_pressure_monitor">Máy đo huyết áp</option>
                 <option value="smart_scale">Cân điện tử sinh trắc</option>
                 <option value="smartwatch">Đồng hồ thông minh</option>
-                <option value="spo2_sensor">Cảm biến SpO2</option>
+                <option value="pulse_oximeter">Cảm biến SpO2</option>
               </select>
             </div>
             <div>
