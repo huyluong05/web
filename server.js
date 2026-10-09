@@ -1513,6 +1513,47 @@ async function startServer() {
         }
     });
 
+    // Đăng xuất người dùng
+    app.post("/api/auth/logout", authenticateJWT, async (req, res) => {
+        try {
+            return res.status(200).json({
+                success: true,
+                message: "Đăng xuất thành công."
+            });
+        } catch (error) {
+            console.error("Error POST /api/auth/logout:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Lỗi khi đăng xuất."
+            });
+        }
+    });
+
+    // Ghi nhận lượt truy cập trang
+    app.post("/api/activity/page-view", authenticateJWT, async (req, res) => {
+        try {
+            const { page } = req.body || {};
+
+            if (typeof page !== "string" || !page.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Đường dẫn trang không hợp lệ."
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Đã tiếp nhận lượt xem trang."
+            });
+        } catch (error) {
+            console.error("Error POST /api/activity/page-view:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Không thể ghi nhận lượt xem trang."
+            });
+        }
+    });
+    
     // Current user info (returns full profile)
     app.get("/api/auth/me", authenticateJWT, async (req, res) => {
         try {
