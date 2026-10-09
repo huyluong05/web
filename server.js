@@ -1557,7 +1557,31 @@ async function startServer() {
             }
             // Personal & Contact Info
             if (body.phone_number !== undefined) { updates.push('phone_number = ?'); params.push(String(body.phone_number).trim()); }
-            if (body.date_of_birth !== undefined) { updates.push('date_of_birth = ?'); params.push(String(body.date_of_birth).trim()); }
+            if (body.date_of_birth !== undefined) {
+                const dateOfBirth = String(body.date_of_birth ?? "").trim();
+
+                if (dateOfBirth === "") {
+                    updates.push("date_of_birth = ?");
+                    params.push(null);
+                } else {
+                    const isValidFormat = /^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth);
+                    const parsedDate = new Date(`${dateOfBirth}T00:00:00Z`);
+                    const isValidDate =
+                        isValidFormat &&
+                        !Number.isNaN(parsedDate.getTime()) &&
+                        parsedDate.toISOString().slice(0, 10) === dateOfBirth;
+
+                    if (!isValidDate) {
+                        return res.status(400).json({
+                            success: false,
+                            message: "Ngày sinh không hợp lệ. Vui lòng sử dụng định dạng YYYY-MM-DD."
+                        });
+                    }
+
+                    updates.push("date_of_birth = ?");
+                    params.push(dateOfBirth);
+                }
+            }
             if (body.gender !== undefined) { updates.push('gender = ?'); params.push(body.gender); }
             if (body.address !== undefined) { updates.push('address = ?'); params.push(String(body.address).trim()); }
             if (body.occupation !== undefined) { updates.push('occupation = ?'); params.push(String(body.occupation).trim()); }
