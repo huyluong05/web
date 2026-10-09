@@ -1656,6 +1656,7 @@ async function startServer() {
             });
         }
         catch (err) {
+            console.error("Error PUT /api/profile:", err);
             return res.status(500).json({ success: false, message: "Lỗi khi cập nhật hồ sơ.", error: err.message });
         }
     });
