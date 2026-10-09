@@ -31,8 +31,8 @@ export function getMySQLPool() {
         const ssl = sslCa
             ? { ca: sslCa, rejectUnauthorized: true }
             : process.env.MYSQL_SSL === "true"
-              ? { rejectUnauthorized: true }
-              : undefined;
+                ? { rejectUnauthorized: true }
+                : undefined;
         mysqlPool = mysql.createPool({
             host: process.env.MYSQL_HOST || "localhost",
             port: parseInt(process.env.MYSQL_PORT || "3306", 10),
@@ -886,7 +886,7 @@ const authenticateJWT = async (req, res, next) => {
         const pool = getMySQLPool();
         const [users] = await pool.query('SELECT id, email, role, full_name, is_active FROM users WHERE id = ?', [decoded.id]);
         const user = users[0];
-        
+
         if (!user || !user.is_active) {
             return res.status(401).json({
                 success: false,
@@ -969,15 +969,15 @@ async function startServer() {
             if (password.length < 6) {
                 return res.status(400).json({ success: false, message: "Mật khẩu phải có ít nhất 6 ký tự để đảm bảo an toàn." });
             }
-            
+
             const pool = getMySQLPool();
             const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [trimmedEmail]);
             if (existing.length > 0) {
                 return res.status(409).json({ success: false, message: "Email này đã được đăng ký tài khoản trong hệ thống." });
             }
-            
+
             const hashedPassword = await bcrypt.hash(password, 10);
-            
+
             const [userResult] = await pool.execute(
                 'INSERT INTO users (full_name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?)',
                 [trimmedName, trimmedEmail, hashedPassword, 'user', 1]
@@ -997,7 +997,7 @@ async function startServer() {
 
             const clientIp = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "127.0.0.1";
             const userAgent = req.headers["user-agent"] || "Unknown Browser";
-            
+
             logSystemActivity("REGISTER", "success", `Đăng ký tài khoản thành công cho ${newUser.email}`, {
                 userId: newUser.id, userName: newUser.full_name, userEmail: newUser.email, userRole: newUser.role, ip: clientIp, userAgent
             });
@@ -1007,16 +1007,16 @@ async function startServer() {
                 description: `${newUser.full_name} đã đăng ký tài khoản thành viên mới`,
                 metadata: { email: newUser.email, full_name: newUser.full_name }, status: "SUCCESS", req
             });
-            
+
             const token = jwt.sign({ id: newUser.id, email: newUser.email, role: newUser.role, full_name: newUser.full_name }, JWT_SECRET, { expiresIn: "7d" });
-            
+
             cleanExpiredSessions();
             const sessionId = `sess_${newUser.id}_${Date.now()}`;
             activeSessionsMap.set(sessionId, {
                 sessionId, userId: newUser.id, userName: newUser.full_name, userEmail: newUser.email, userRole: newUser.role,
                 ipAddress: clientIp, userAgent, loginAt: new Date().toISOString(), lastActivityAt: new Date().toISOString()
             });
-            
+
             return res.status(201).json({
                 success: true,
                 message: "Đăng ký tài khoản thành công!",
@@ -1257,7 +1257,7 @@ async function startServer() {
                 if (!user.is_active) {
                     return res.status(403).json({ success: false, message: "Tài khoản của bạn đã bị khóa hoặc tạm ngưng bởi Quản trị viên." });
                 }
-                
+
                 let avatarUpdateQuery = '';
                 let queryParams = [];
                 if (avatar_url && !user.avatar_url) {
@@ -1275,14 +1275,14 @@ async function startServer() {
                 const defaultAvatar = avatar_url || (provider === "apple"
                     ? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80"
                     : "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80");
-                
+
                 const randomPassword = await bcrypt.hash(Math.random().toString(36), 10);
-                
+
                 const [insertResult] = await pool.execute(
                     'INSERT INTO users (full_name, email, password, role, is_active, avatar_url) VALUES (?, ?, ?, ?, ?, ?)',
                     [displayName, trimmedEmail, randomPassword, 'user', 1, defaultAvatar]
                 );
-                
+
                 const newUserId = insertResult.insertId;
                 const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [newUserId]);
                 user = newUsers[0];
@@ -1427,10 +1427,10 @@ async function startServer() {
 
             const isEmail = key.includes("@");
             const pool = getMySQLPool();
-            
+
             let query = isEmail ? 'SELECT * FROM users WHERE email = ?' : 'SELECT * FROM users WHERE phone_number = ?';
             const [users] = await pool.query(query, [key]);
-            
+
             let user = users[0];
             let isNewUser = false;
 
@@ -1446,12 +1446,12 @@ async function startServer() {
                     : `Người dùng ${isEmail ? key.split("@")[0] : key}`;
 
                 const randomPassword = await bcrypt.hash(Math.random().toString(36), 10);
-                
+
                 const [insertResult] = await pool.execute(
                     'INSERT INTO users (full_name, email, phone_number, password, role, is_active) VALUES (?, ?, ?, ?, ?, ?)',
                     [displayName, emailToUse, isEmail ? null : key, randomPassword, 'user', 1]
                 );
-                
+
                 const newUserId = insertResult.insertId;
                 const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [newUserId]);
                 user = newUsers[0];
@@ -1526,7 +1526,7 @@ async function startServer() {
             if (typeof user.chronic_conditions === 'string') user.chronic_conditions = JSON.parse(user.chronic_conditions);
             if (typeof user.allergies === 'string') user.allergies = JSON.parse(user.allergies);
             if (typeof user.vital_alert_thresholds === 'string') user.vital_alert_thresholds = JSON.parse(user.vital_alert_thresholds);
-            
+
             return res.status(200).json({
                 success: true,
                 data: sanitizeUser(user),
@@ -1607,18 +1607,18 @@ async function startServer() {
                 };
                 updates.push('vital_alert_thresholds = ?'); params.push(JSON.stringify(thresholds));
             }
-            
+
             let updatedUser = user;
             if (updates.length > 0) {
                 updates.push('updated_at = NOW()');
                 const query = 'UPDATE users SET ' + updates.join(', ') + ' WHERE id = ?';
                 params.push(req.user.id);
                 await pool.execute(query, params);
-                
+
                 const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [req.user.id]);
                 updatedUser = newUsers[0];
             }
-            
+
             // Format arrays back to json objects
             if (typeof updatedUser.chronic_conditions === 'string') updatedUser.chronic_conditions = JSON.parse(updatedUser.chronic_conditions);
             if (typeof updatedUser.allergies === 'string') updatedUser.allergies = JSON.parse(updatedUser.allergies);
@@ -1745,12 +1745,12 @@ async function startServer() {
                 if (range === "7d") days = 7;
                 else if (range === "30d") days = 30;
                 else if (range === "3m") days = 90;
-                
+
                 const cutoff = new Date(now - days * 86400000).toISOString().slice(0, 19).replace('T', ' ');
                 query += ' AND recorded_at >= ?';
                 params.push(cutoff);
             }
-            
+
             query += ' ORDER BY recorded_at ASC';
             const pool = getMySQLPool();
             const [records] = await pool.query(query, params);
@@ -1771,7 +1771,7 @@ async function startServer() {
             const userId = req.user.id;
             const pool = getMySQLPool();
             const [records] = await pool.query('SELECT * FROM health_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 2', [userId]);
-            
+
             const latest = records[0] || null;
             const previous = records[1] || null;
             return res.status(200).json({
@@ -1801,7 +1801,7 @@ async function startServer() {
             if (isNaN(numWeight) || numWeight <= 10 || numWeight > 400) return res.status(400).json({ success: false, message: "Cân nặng không hợp lệ (10 - 400 kg)." });
             if (isNaN(numSys) || isNaN(numDia) || numSys < 50 || numSys > 260 || numDia < 30 || numDia > 180) return res.status(400).json({ success: false, message: "Chỉ số huyết áp không hợp lệ." });
             if (isNaN(numHr) || numHr < 30 || numHr > 240) return res.status(400).json({ success: false, message: "Nhịp tim không hợp lệ (30 - 240 bpm)." });
-            
+
             const recordTime = recorded_at ? new Date(recorded_at).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
             const pool = getMySQLPool();
             const [result] = await pool.execute(
@@ -1813,7 +1813,10 @@ async function startServer() {
             const newRecord = newRecords[0];
 
             // Auto-update weight goals if user has weight metric
-            const [userGoals] = await pool.query('SELECT * FROM goals WHERE user_id = ? AND metric_type = "weight" AND status = "in_progress"', [userId]);
+            const [userGoals] = await pool.query(
+                'SELECT * FROM goals WHERE user_id = ? AND metric_type = ? AND status = ?',
+                [userId, "weight", "in_progress"]
+            );
             for (const g of userGoals) {
                 const currentVal = newRecord.weight;
                 let status = 'in_progress';
@@ -1850,7 +1853,7 @@ async function startServer() {
             const userId = req.user.id;
             const recordId = parseInt(req.params.id, 10);
             const { weight, systolic, diastolic, heart_rate, recorded_at, notes } = req.body;
-            
+
             const pool = getMySQLPool();
             const [records] = await pool.query('SELECT * FROM health_records WHERE id = ? AND user_id = ?', [recordId, userId]);
             if (records.length === 0) {
@@ -1902,13 +1905,13 @@ async function startServer() {
         try {
             const userId = req.user.id;
             const recordId = parseInt(req.params.id, 10);
-            
+
             const pool = getMySQLPool();
             const [records] = await pool.query('SELECT * FROM health_records WHERE id = ? AND user_id = ?', [recordId, userId]);
             if (records.length === 0) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy bản ghi sức khỏe cần xóa." });
             }
-            
+
             await pool.execute('DELETE FROM health_records WHERE id = ?', [recordId]);
 
             createAuditLog({
@@ -1939,12 +1942,12 @@ async function startServer() {
             const userId = req.user.id;
             const pool = getMySQLPool();
             const [goals] = await pool.query('SELECT * FROM goals WHERE user_id = ?', [userId]);
-            
+
             const goalsWithProgress = goals.map((g) => ({
                 ...g,
                 progress_percentage: calculateProgress(g),
             }));
-            
+
             return res.status(200).json({ success: true, data: goalsWithProgress });
         } catch (error) {
             console.error('Error in GET /api/goals:', error);
@@ -1963,13 +1966,13 @@ async function startServer() {
                 return res.status(400).json({ success: false, message: "Giá trị số không hợp lệ." });
             }
             const cur = current_value !== undefined ? Number(current_value) : Number(start_value);
-            
+
             const pool = getMySQLPool();
             const [result] = await pool.execute(
                 'INSERT INTO goals (user_id, title, metric_type, start_value, target_value, current_value, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                 [userId, title, metric_type || "weight", Number(start_value), Number(target_value), cur, unit || "kg", "in_progress"]
             );
-            
+
             const [newGoals] = await pool.query('SELECT * FROM goals WHERE id = ?', [result.insertId]);
             const newGoal = newGoals[0];
 
@@ -2007,7 +2010,7 @@ async function startServer() {
             const { title, current_value, target_value, status } = req.body;
             if (current_value !== undefined && isNaN(Number(current_value))) return res.status(400).json({ success: false, message: "Giá trị hiện tại không hợp lệ." });
             if (target_value !== undefined && isNaN(Number(target_value))) return res.status(400).json({ success: false, message: "Giá trị mục tiêu không hợp lệ." });
-            
+
             const pool = getMySQLPool();
             const [goals] = await pool.query('SELECT * FROM goals WHERE id = ? AND user_id = ?', [goalId, userId]);
             if (goals.length === 0) {
@@ -2066,13 +2069,13 @@ async function startServer() {
         try {
             const userId = req.user.id;
             const goalId = parseInt(req.params.id, 10);
-            
+
             const pool = getMySQLPool();
             const [goals] = await pool.query('SELECT * FROM goals WHERE id = ? AND user_id = ?', [goalId, userId]);
             if (goals.length === 0) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy mục tiêu cần xóa." });
             }
-            
+
             await pool.execute('DELETE FROM goals WHERE id = ?', [goalId]);
 
             createAuditLog({
@@ -2104,7 +2107,7 @@ async function startServer() {
             const userId = req.user.id;
             const pool = getMySQLPool();
             const [reminders] = await pool.query('SELECT * FROM reminders WHERE user_id = ?', [userId]);
-            
+
             return res.status(200).json({ success: true, data: reminders });
         } catch (error) {
             console.error('Error in GET /api/reminders:', error);
@@ -2122,13 +2125,13 @@ async function startServer() {
             if (type !== "water" && type !== "exercise") {
                 return res.status(400).json({ success: false, message: "Loại nhắc nhở chỉ gồm: uống nước (water) hoặc tập thể dục (exercise)." });
             }
-            
+
             const pool = getMySQLPool();
             const [result] = await pool.execute(
                 'INSERT INTO reminders (user_id, type, title, time_of_day, is_active) VALUES (?, ?, ?, ?, ?)',
                 [userId, type, title, time_of_day, 1]
             );
-            
+
             const [newReminders] = await pool.query('SELECT * FROM reminders WHERE id = ?', [result.insertId]);
             const newReminder = newReminders[0];
 
@@ -2161,7 +2164,7 @@ async function startServer() {
             const userId = req.user.id;
             const reminderId = parseInt(req.params.id, 10);
             const { type, title, time_of_day, is_active } = req.body;
-            
+
             const pool = getMySQLPool();
             const [reminders] = await pool.query('SELECT * FROM reminders WHERE id = ? AND user_id = ?', [reminderId, userId]);
             if (reminders.length === 0) {
@@ -2176,7 +2179,7 @@ async function startServer() {
             if (type !== undefined && (type === "water" || type === "exercise")) { updates.push('type = ?'); params.push(type); }
             if (title !== undefined) { updates.push('title = ?'); params.push(title); }
             if (time_of_day !== undefined) { updates.push('time_of_day = ?'); params.push(time_of_day); }
-            
+
             const isToggleOnly = is_active !== undefined && updates.length === 0 && reminder.is_active !== (is_active ? 1 : 0);
             if (is_active !== undefined) { updates.push('is_active = ?'); params.push(is_active ? 1 : 0); }
 
@@ -2225,13 +2228,13 @@ async function startServer() {
         try {
             const userId = req.user.id;
             const reminderId = parseInt(req.params.id, 10);
-            
+
             const pool = getMySQLPool();
             const [reminders] = await pool.query('SELECT * FROM reminders WHERE id = ? AND user_id = ?', [reminderId, userId]);
             if (reminders.length === 0) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy nhắc nhở cần xóa." });
             }
-            
+
             await pool.execute('DELETE FROM reminders WHERE id = ?', [reminderId]);
 
             createAuditLog({
@@ -2262,14 +2265,14 @@ async function startServer() {
         try {
             cleanExpiredSessions();
             const pool = getMySQLPool();
-            
+
             const [[{ count: totalUsers }]] = await pool.query('SELECT COUNT(*) as count FROM users');
             const [[{ count: activeUsers }]] = await pool.query('SELECT COUNT(*) as count FROM users WHERE is_active = 1');
             const [[{ count: totalHealthRecords }]] = await pool.query('SELECT COUNT(*) as count FROM health_records');
             const [[{ count: totalGoals }]] = await pool.query('SELECT COUNT(*) as count FROM goals');
             const [[{ count: totalReminders }]] = await pool.query('SELECT COUNT(*) as count FROM reminders');
             const onlineSessionsCount = activeSessionsMap.size;
-            
+
             // Calculate AHA risk distribution via SQL
             const [riskRows] = await pool.query(`
                 SELECT 
@@ -2280,7 +2283,7 @@ async function startServer() {
                     SUM(CASE WHEN systolic < 120 AND diastolic < 80 THEN 1 ELSE 0 END) as normal
                 FROM health_records
             `);
-            
+
             const riskDistribution = {
                 crisis: Number(riskRows[0]?.crisis || 0),
                 stage2: Number(riskRows[0]?.stage2 || 0),
@@ -2290,7 +2293,7 @@ async function startServer() {
             };
 
             const [recentTelemetry] = await pool.query('SELECT * FROM health_records ORDER BY recorded_at DESC LIMIT 30');
-            
+
             return res.status(200).json({
                 success: true,
                 data: {
@@ -2311,7 +2314,7 @@ async function startServer() {
     });
 
     // Admin Comprehensive System-Wide Health & User Statistics
-    
+
     // Admin Comprehensive System-Wide Health & User Statistics
     app.get("/api/admin/statistics", authenticateJWT, requireAdmin, async (req, res) => {
         try {
@@ -2547,7 +2550,7 @@ async function startServer() {
         try {
             const { search } = req.query;
             const pool = getMySQLPool();
-            
+
             let query = `
                 SELECT u.id, u.full_name, u.email, u.role, u.is_active, u.created_at,
                        (SELECT COUNT(*) FROM health_records h WHERE h.user_id = u.id) as records_count,
@@ -2555,15 +2558,15 @@ async function startServer() {
                 FROM users u
             `;
             const params = [];
-            
+
             if (search && typeof search === "string") {
                 query += ' WHERE u.full_name LIKE ? OR u.email LIKE ?';
                 const likeSearch = `%${search}%`;
                 params.push(likeSearch, likeSearch);
             }
-            
+
             const [users] = await pool.query(query, params);
-            
+
             return res.status(200).json({
                 success: true,
                 data: users,
@@ -2577,22 +2580,22 @@ async function startServer() {
         try {
             const targetId = parseInt(req.params.id, 10);
             const { is_active } = req.body;
-            
+
             if (targetId === req.user.id) {
                 return res.status(400).json({ success: false, message: "Bạn không thể tự khóa tài khoản quản trị của chính mình." });
             }
-            
+
             const pool = getMySQLPool();
             const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
             const user = users[0];
-            
+
             if (!user) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
             }
-            
+
             const isActiveBool = Boolean(is_active);
             await pool.execute('UPDATE users SET is_active = ? WHERE id = ?', [isActiveBool ? 1 : 0, targetId]);
-            
+
             createAuditLog({
                 userId: req.user.id,
                 userName: req.user.full_name,
@@ -2606,7 +2609,7 @@ async function startServer() {
                 status: "SUCCESS",
                 req
             });
-            
+
             return res.status(200).json({
                 success: true,
                 message: `Đã ${isActiveBool ? 'mở khóa' : 'khóa'} tài khoản thành công.`,
@@ -2621,24 +2624,24 @@ async function startServer() {
         try {
             const targetId = parseInt(req.params.id, 10);
             const { role } = req.body;
-            
+
             if (role !== "admin" && role !== "user") {
                 return res.status(400).json({ success: false, message: "Quyền không hợp lệ." });
             }
             if (targetId === req.user.id) {
                 return res.status(400).json({ success: false, message: "Bạn không thể tự thay đổi quyền của chính mình." });
             }
-            
+
             const pool = getMySQLPool();
             const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
             const user = users[0];
-            
+
             if (!user) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
             }
-            
+
             await pool.execute('UPDATE users SET role = ? WHERE id = ?', [role, targetId]);
-            
+
             createAuditLog({
                 userId: req.user.id,
                 userName: req.user.full_name,
@@ -2653,7 +2656,7 @@ async function startServer() {
                 status: "SUCCESS",
                 req
             });
-            
+
             return res.status(200).json({
                 success: true,
                 message: `Cập nhật quyền thành ${role} thành công.`,
@@ -2665,12 +2668,12 @@ async function startServer() {
     });
 
     // Admin View User Dossier
-    
+
     app.get("/api/admin/users/:id/dossier", authenticateJWT, requireAdmin, async (req, res) => {
         try {
             const targetId = parseInt(req.params.id, 10);
             const pool = getMySQLPool();
-            
+
             const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
             const user = users[0];
             if (!user) {
@@ -2681,7 +2684,7 @@ async function startServer() {
             const [goals] = await pool.query('SELECT * FROM goals WHERE user_id = ? ORDER BY created_at DESC', [targetId]);
             const [devices] = await pool.query('SELECT * FROM connected_devices WHERE user_id = ?', [targetId]);
             const [aiHistory] = await pool.query('SELECT * FROM ai_diagnoses WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [targetId]);
-            
+
             createAuditLog({
                 userId: req.user.id,
                 userName: req.user.full_name,
@@ -2701,7 +2704,7 @@ async function startServer() {
                 data: {
                     user: sanitizeUser(user),
                     health_records: records,
-                    goals: goals.map(g => ({...g, progress_percentage: calculateProgress(g)})),
+                    goals: goals.map(g => ({ ...g, progress_percentage: calculateProgress(g) })),
                     devices,
                     ai_history: aiHistory,
                 },
@@ -2712,32 +2715,32 @@ async function startServer() {
     });
 
     // Admin Add New User
-    
+
     app.post("/api/admin/users", authenticateJWT, requireAdmin, async (req, res) => {
         try {
             const { full_name, email, role, password } = req.body;
             if (!full_name || !email || !role || !password) {
                 return res.status(400).json({ success: false, message: "Vui lòng điền đầy đủ thông tin bắt buộc." });
             }
-            
+
             const pool = getMySQLPool();
             const trimmedEmail = email.trim().toLowerCase();
             const [existing] = await pool.query('SELECT * FROM users WHERE email = ?', [trimmedEmail]);
-            
+
             if (existing.length > 0) {
                 return res.status(400).json({ success: false, message: "Email này đã được sử dụng." });
             }
-            
+
             const hashed = await bcrypt.hash(password, 10);
-            
+
             const [result] = await pool.execute(
                 'INSERT INTO users (full_name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?)',
                 [full_name.trim(), trimmedEmail, hashed, role, 1]
             );
-            
+
             const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
             const newUser = newUsers[0];
-            
+
             createAuditLog({
                 userId: req.user.id,
                 userName: req.user.full_name,
@@ -2752,7 +2755,7 @@ async function startServer() {
                 status: "SUCCESS",
                 req
             });
-            
+
             return res.status(201).json({
                 success: true,
                 message: "Tạo người dùng mới thành công.",
@@ -2764,20 +2767,20 @@ async function startServer() {
     });
 
     // Admin Update User
-    
+
     app.put("/api/admin/users/:id", authenticateJWT, requireAdmin, async (req, res) => {
         try {
             const targetId = parseInt(req.params.id, 10);
             const { full_name, email, role, phone_number, occupation } = req.body;
-            
+
             const pool = getMySQLPool();
             const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
             const user = users[0];
-            
+
             if (!user) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
             }
-            
+
             if (email) {
                 const trimmedEmail = email.trim().toLowerCase();
                 const [existing] = await pool.query('SELECT * FROM users WHERE email = ? AND id != ?', [trimmedEmail, targetId]);
@@ -2785,25 +2788,25 @@ async function startServer() {
                     return res.status(400).json({ success: false, message: "Email này đã được tài khoản khác sử dụng." });
                 }
             }
-            
+
             let updates = [];
             let params = [];
-            
+
             if (full_name !== undefined) { updates.push('full_name = ?'); params.push(full_name.trim()); }
             if (email !== undefined) { updates.push('email = ?'); params.push(email.trim().toLowerCase()); }
             if (role !== undefined) { updates.push('role = ?'); params.push(role); }
             if (phone_number !== undefined) { updates.push('phone_number = ?'); params.push(phone_number.trim()); }
             if (occupation !== undefined) { updates.push('occupation = ?'); params.push(occupation.trim()); }
-            
+
             let updatedUser = user;
             if (updates.length > 0) {
                 updates.push('updated_at = NOW()');
                 await pool.execute('UPDATE users SET ' + updates.join(', ') + ' WHERE id = ?', [...params, targetId]);
-                
+
                 const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
                 updatedUser = newUsers[0];
             }
-            
+
             createAuditLog({
                 userId: req.user.id,
                 userName: req.user.full_name,
@@ -2817,7 +2820,7 @@ async function startServer() {
                 status: "SUCCESS",
                 req
             });
-            
+
             return res.status(200).json({
                 success: true,
                 message: "Cập nhật thông tin người dùng thành công.",
@@ -2829,24 +2832,24 @@ async function startServer() {
     });
 
     // Admin Reset Password
-    
+
     app.post("/api/admin/users/:id/reset-password", authenticateJWT, requireAdmin, async (req, res) => {
         try {
             const targetId = parseInt(req.params.id, 10);
-            
+
             const pool = getMySQLPool();
             const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
             const user = users[0];
-            
+
             if (!user) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
             }
-            
+
             const defaultPass = "123456";
             const hashed = await bcrypt.hash(defaultPass, 10);
-            
+
             await pool.execute('UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?', [hashed, targetId]);
-            
+
             createAuditLog({
                 userId: req.user.id,
                 userName: req.user.full_name,
@@ -2860,7 +2863,7 @@ async function startServer() {
                 status: "SUCCESS",
                 req
             });
-            
+
             return res.status(200).json({
                 success: true,
                 message: "Đặt lại mật khẩu thành công. Mật khẩu mới là: 123456",
@@ -2871,24 +2874,24 @@ async function startServer() {
     });
 
     // Admin Delete User
-    
+
     app.delete("/api/admin/users/:id", authenticateJWT, requireAdmin, async (req, res) => {
         try {
             const targetId = parseInt(req.params.id, 10);
             if (targetId === req.user.id) {
                 return res.status(400).json({ success: false, message: "Bạn không thể xóa tài khoản của chính mình." });
             }
-            
+
             const pool = getMySQLPool();
             const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
             const user = users[0];
-            
+
             if (!user) {
                 return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
             }
-            
+
             await pool.execute('DELETE FROM users WHERE id = ?', [targetId]);
-            
+
             createAuditLog({
                 userId: req.user.id,
                 userName: req.user.full_name,
@@ -2902,7 +2905,7 @@ async function startServer() {
                 status: "SUCCESS",
                 req
             });
-            
+
             return res.status(200).json({
                 success: true,
                 message: "Đã xóa người dùng thành công.",
@@ -2951,7 +2954,7 @@ async function startServer() {
         res.json({ success: true, data: backup });
     });
 
-    
+
     // =========================================================================
     // 🤖 1. AI HEALTH DIAGNOSTICS & GEMINI ASSISTANT API ENDPOINTS
     // =========================================================================
