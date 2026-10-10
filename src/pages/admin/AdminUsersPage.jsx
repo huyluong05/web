@@ -583,7 +583,7 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
             <div className="flex items-center gap-1 border-b border-slate-200 pb-2 overflow-x-auto">
               {[
                 { id: "profile", label: "Y bạ & Tiền sử", icon: FileText },
-                { id: "telemetry", label: `Sinh tồn (${dossierData.records.length})`, icon: Activity },
+                { id: "telemetry", label: `Sinh tồn (${(dossierData.health_records ?? []).length})`, icon: Activity },
                 { id: "ai", label: `AI Diagnoses (${dossierData.aiHistory.length})`, icon: Bot },
                 { id: "goals", label: `Mục tiêu (${dossierData.goals.length})`, icon: Target },
                 { id: "devices", label: `Thiết bị (${dossierData.devices.length})`, icon: Cpu },
@@ -710,10 +710,10 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
             {/* TAB 2: Telemetry Records */}
             {dossierTab === "telemetry" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2 max-h-[50vh] overflow-y-auto">
-                {dossierData.records.length === 0 ? (
+                {(dossierData.health_records ?? []).length === 0 ? (
                   <div className="text-center py-8 text-slate-500 text-sm">Chưa có bản ghi sinh tồn.</div>
                 ) : (
-                  dossierData.records.map((r) => (
+                  (dossierData.health_records ?? []).map((r) => (
                     <div key={r.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
                       <div>
                         <div className="flex items-center gap-3 mb-1 text-sm">
