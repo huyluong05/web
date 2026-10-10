@@ -44,11 +44,7 @@ export const ForgotPasswordPage = () => {
         setErrorMessage(res.message || "Không thể gửi yêu cầu khôi phục");
       }
     } catch (err) {
-      // Fallback if backend does not fully support it
-      setTimeout(() => {
-        setIsSubmitted(true);
-        success("Đã gửi hướng dẫn khôi phục mật khẩu!");
-      }, 1000);
+      setErrorMessage(err.message || 'Chưa thể gửi yêu cầu. Vui lòng thử lại hoặc liên hệ quản trị viên.');
     } finally {
       setLoading(false);
     }

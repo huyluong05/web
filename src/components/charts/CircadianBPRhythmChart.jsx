@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
+import { metricRecords } from '../../utils/metrics';
 import { Sun, Sunset, Moon, Sunrise, AlertCircle } from "lucide-react";
 export const CircadianBPRhythmChart = ({ records }) => {
+  records = useMemo(() => metricRecords(records, ['systolic', 'diastolic']), [records]);
   const circadianStats = useMemo(() => {
     if (!records || records.length === 0) return null; // Time buckets // Sáng sớm (06:00 - 09:59) - Morning surge window // Trưa (10:00 - 13:59) // Chiều (14:00 - 17:59) // Tối & Đêm (18:00 - 05:59) - Nocturnal dipping window
 const morning = [];
@@ -22,9 +24,8 @@ const morning = [];
       const dia = Math.round(
         arr.reduce((a, b) => a + b.diastolic, 0) / arr.length,
       );
-      const hr = Math.round(
-        arr.reduce((a, b) => a + b.heart_rate, 0) / arr.length,
-      );
+      const heartRecords = arr.filter(r => r.heart_rate != null);
+      const hr = heartRecords.length ? Math.round(heartRecords.reduce((a, b) => a + b.heart_rate, 0) / heartRecords.length) : null;
       return { avgSys: sys, avgDia: dia, avgHr: hr, count: arr.length };
     };
     const m = calcAvg(morning);
@@ -130,7 +131,7 @@ const isMorningSurge =
                       </span>{" "}
                     </p>{" "}
                     <p className="text-[11px] opacity-80">
-                      Nhịp tim TB: {b.data.avgHr} bpm
+                      Nhịp tim TB: {b.data.avgHr ?? 'Chưa có số đo'} bpm
                     </p>{" "}
                   </>
                 ) : (

@@ -16,16 +16,19 @@ import {
 import { Link } from "react-router-dom";
 import { AdminHealthStatsSuite } from "../../components/admin/AdminHealthStatsSuite";
 import { motion } from "motion/react";
+import { DataStatus } from '../../components/common/DataStatus';
 
 export const AdminDashboardPage = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const statsRes = await adminApi.getDashboardStats();
+        setLoadError(statsRes.success ? '' : statsRes.message);
         if (statsRes.success && statsRes.data) {
           setStats(statsRes.data);
         }
@@ -59,6 +62,7 @@ export const AdminDashboardPage = () => {
       className="flex flex-col flex-1 pb-8"
     >
       {/* Page Header */}
+      <DataStatus loading={loading} error={loadError} onRetry={() => window.location.reload()} />
       <header className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-1">
           Tổng quan Hệ thống

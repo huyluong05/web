@@ -11,7 +11,7 @@ export const MobileNav = ({ onOpenMenu }) => {
   const items = [
     { label: "Tổng quan", path: "/dashboard", icon: LayoutDashboard },
     { label: "Chỉ số", path: "/health", icon: Activity },
-    { label: "AI Y khoa", path: "/ai-diagnostics", icon: Brain },
+    { label: "AI Phân tích", path: "/ai-diagnostics", icon: Brain },
     { label: "Biểu đồ", path: "/analytics", icon: LineChart },
   ];
   return (

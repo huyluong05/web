@@ -1,8 +1,10 @@
 import React, { useMemo } from "react";
+import { metricRecords } from '../../utils/metrics';
 export const VitalsDistributionChart = ({
   records,
   title = "Phân Bố Tỷ Lệ Nguy Cơ Tim Mạch (AHA/ACC Classification)",
 }) => {
+  records = useMemo(() => metricRecords(records, ['systolic', 'diastolic']), [records]);
   const distribution = useMemo(() => {
     if (!records || records.length === 0) return null;
     let normal = 0;

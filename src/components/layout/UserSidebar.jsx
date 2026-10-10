@@ -23,7 +23,7 @@ export const UserSidebar = () => {
     { label: "Tổng quan", path: "/dashboard", icon: LayoutDashboard },
     { label: "Chỉ số sinh tồn", path: "/health", icon: Activity },
     {
-      label: "AI Chẩn đoán",
+      label: "AI Phân tích",
       path: "/ai-diagnostics",
       icon: Brain,
       badge: "AI",

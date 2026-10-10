@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect } from "react";
 import { adminApi, databaseApi } from "../../api/client";
 import { useToast } from "../../context/ToastContext";
@@ -25,6 +26,8 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 export const AdminSettingsPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const { success, error } = useToast();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,8 @@ const [dbStatus, setDbStatus] = useState(null);
     try {
       setLoading(true);
       const res = await adminApi.getSystemSettings();
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
       if (res.success && res.data) {
         setSettings(res.data);
       }
@@ -91,12 +96,12 @@ const [dbStatus, setDbStatus] = useState(null);
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `vitaltrack_full_system_backup_${Date.now()}.json`;
+        link.download = `vitaltrack_application_export_${Date.now()}.json`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        success("Đã xuất bản sao lưu toàn diện hệ thống JSON thành công!");
+        success("Đã xuất dữ liệu ứng dụng JSON. Bản này không thay thế backup MySQL có thể phục hồi đầy đủ.");
       } else {
         error(res.message || "Lỗi sao lưu");
       }
@@ -114,7 +119,7 @@ const [dbStatus, setDbStatus] = useState(null);
     hidden: { opacity: 0, y: 10 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
   };
-  if (loading || !settings) {
+  if (loading) {
     return (
       <div className="flex flex-col flex-1 items-center justify-center py-20 bg-slate-50 rounded-md">
         <RefreshCw className="w-8 h-8 animate-spin text-slate-500 mb-4" />
@@ -124,6 +129,7 @@ const [dbStatus, setDbStatus] = useState(null);
       </div>
     );
   }
+  if (!settings) return <DataStatus error={loadError || 'Chưa thể tải cấu hình hệ thống.'} onRetry={fetchSettings} />;
   return (
     <motion.div
       initial="hidden"
@@ -131,6 +137,8 @@ const [dbStatus, setDbStatus] = useState(null);
       variants={containerVariants}
       className="flex flex-col flex-1 pb-12"
     >
+      <DataStatus error={loadError} onRetry={fetchSettings} />
+      <p className="mb-4 p-3 rounded-md bg-amber-50 border border-amber-200 text-sm text-amber-900">Lưu cấu hình chưa tự kích hoạt email, chế độ bảo trì hay thay đổi mô hình AI. Các tích hợp này cần được xác nhận riêng trước khi sử dụng. Cảnh báo tham chiếu hiện dùng các ngưỡng AHA đã dẫn nguồn.</p>
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-semibold uppercase tracking-wider mb-2">
@@ -152,7 +160,7 @@ const [dbStatus, setDbStatus] = useState(null);
             isLoading={exporting}
             onClick={handleExportFullBackup}
           >
-            Sao Lưu Database
+            Xuất dữ liệu ứng dụng
           </Button>
           <Button
             variant="primary"
@@ -583,7 +591,7 @@ const [dbStatus, setDbStatus] = useState(null);
                     <h3 className="font-semibold text-sm text-slate-900">
                       {dbStatus?.connected
                         ? "Đã kết nối thành công tới MySQL"
-                        : "Chế độ Lưu trữ Hybrid (In-Memory + MySQL)"}
+                        : "Chưa xác nhận kết nối MySQL"}
                     </h3>
                     <span
                       className={`w-2 h-2 rounded-full ${dbStatus?.connected ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`}
@@ -592,7 +600,7 @@ const [dbStatus, setDbStatus] = useState(null);
                   <p className="text-xs text-slate-500 mt-1 max-w-xl">
                     {dbStatus?.connected
                       ? `Máy chủ MySQL đang hoạt động tại ${dbStatus.host}:${dbStatus.port} (Database: ${dbStatus.database}).`
-                      : "Hệ thống đã nạp đủ cấu hình kết nối MySQL và schema."}
+                      : "Chưa thể truy vấn MySQL. Kiểm tra kết nối và schema; hệ thống không dùng dữ liệu mẫu thay cho dữ liệu thật."}
                   </p>
                 </div>
               </div>

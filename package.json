@@ -14,7 +14,9 @@
     "deploy": "npm run build:client && gh-pages -d dist-pages",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
-    "lint": "echo 'No lint errors'"
+    "lint": "node --check server.js && node --check server.api.js",
+    "test": "node --test tests/*.test.js",
+    "test:browser": "vite build --base=/ --outDir build/qa-client && node tests/browser-smoke.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

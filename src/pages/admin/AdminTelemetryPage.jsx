@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect } from "react";
 import { adminApi } from "../../api/client";
 import { useToast } from "../../context/ToastContext";
@@ -24,6 +25,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 export const AdminTelemetryPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const { success, error } = useToast();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +51,9 @@ const [editingRecord, setEditingRecord] = useState(null);
         riskCategory: riskFilter,
         search,
       });
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
+      if (!Array.isArray(res.data)) { setLoadError('Invalid API response: expected an array.'); return; }
       if (res.success && res.data) {
         setRecords(res.data);
       }
@@ -178,6 +184,7 @@ const total = records.length;
       variants={containerVariants}
       className="flex flex-col flex-1 pb-12"
     >
+      <DataStatus error={loadError} onRetry={fetchTelemetry} />
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold uppercase tracking-wider mb-2">
@@ -306,7 +313,7 @@ const total = records.length;
           </span>
           {[
             { id: "all", label: "Tất cả" },
-            { id: "crisis", label: "🚨 Khẩn cấp (≥180)" },
+            { id: "crisis", label: "🚨 Vượt ngưỡng nghiêm trọng (>180/>120)" },
             { id: "stage2", label: "Tăng HA Độ 2" },
             { id: "stage1", label: "Tiền Tăng HA" },
             { id: "arrhythmia", label: "Rối loạn nhịp" },
@@ -434,12 +441,14 @@ const total = records.length;
                             </span>
                           ) : rec.riskCategory === "stage1" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-                              Tiền Tăng HA
+                              Khoảng AHA giai đoạn 1
                             </span>
+                          ) : rec.riskCategory === 'unknown' ? (
+                            <span className="text-xs text-slate-500">Thiếu số đo huyết áp</span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
                               <CheckCircle2 className="w-3 h-3" />
-                              Bình Thường
+                              {rec.riskCategory === 'elevated' ? 'Huyết áp tăng' : 'Khoảng tham chiếu'}
                             </span>
                           )}
                         </td>

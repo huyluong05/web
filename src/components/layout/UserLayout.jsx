@@ -4,7 +4,13 @@ import { UserSidebar } from "./UserSidebar";
 import { MobileNav } from "./MobileNav";
 import { useAuditPageTracker } from "../../hooks/useAuditPageTracker";
 import { useAuth } from "../../context/AuthContext";
-import { remindersApi } from "../../api/client";
+import { remindersApi, healthApi } from "../../api/client";
+import { useDataSync } from '../../hooks/useDataSync';
+import { ContextHelp } from '../common/ContextHelp';
+import { HealthPrompt } from '../common/HealthPrompt';
+import { DataStatus } from '../common/DataStatus';
+import { occurrence, reminderPath } from '../../utils/reminders';
+import { ReminderNotice } from '../common/ReminderNotice';
 import {
   LayoutDashboard,
   Activity,
@@ -31,16 +37,18 @@ export const UserLayout = ({ children }) => {
   const [reminders, setReminders] = useState([]);
   const notificationRef = useRef(null);
   const location = useLocation();
+  const [snapshot, setSnapshot] = useState(undefined), [scheduleError, setScheduleError] = useState('');
+  const fetchContext = async () => {
+    const [res, health] = await Promise.all([remindersApi.getAll(), healthApi.getLatest()]);
+    setScheduleError([res, health].filter(r => !r.success).map(r => r.message).join(' · '));
+    if (res.success && Array.isArray(res.data)) setReminders(res.data);
+    if (health.success) setSnapshot(health.data);
+  };
+  useDataSync(fetchContext, ['health', 'reminders'], true);
 
   useEffect(() => {
-    const fetchReminders = async () => {
-      const res = await remindersApi.getAll();
-      if (res.success && res.data) {
-        setReminders(res.data.filter((r) => r.is_active));
-      }
-    };
-    fetchReminders();
-  }, [location.pathname]);
+    fetchContext();
+  }, [user?.id]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -55,11 +63,12 @@ export const UserLayout = ({ children }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const dueReminders = reminders.filter(r => occurrence(r).due);
   const fullNavItems = [
     { label: "Tổng quan", path: "/dashboard", icon: LayoutDashboard },
     { label: "Chỉ số sinh tồn", path: "/health", icon: Activity },
     {
-      label: "AI Chẩn đoán",
+      label: "AI Phân tích",
       path: "/ai-diagnostics",
       icon: Brain,
       badge: "AI",
@@ -186,7 +195,7 @@ export const UserLayout = ({ children }) => {
                 }`}
               >
                 <BellRing className="w-4 h-4" />
-                {reminders.length > 0 && (
+                {dueReminders.length > 0 && (
                   <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary-600 rounded-full ring-2 ring-white"></span>
                 )}
               </button>
@@ -198,19 +207,19 @@ export const UserLayout = ({ children }) => {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.98 }}
                     transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                    className="absolute top-full right-0 mt-3 w-80 bg-white rounded-xl shadow-lg border border-slate-200/80 overflow-hidden z-50 origin-top-right"
+                    className="absolute top-full right-0 mt-3 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-lg border border-slate-200/80 overflow-hidden z-50 origin-top-right"
                   >
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
                       <h3 className="font-semibold text-slate-900 text-sm">
                         Thông báo
                       </h3>
                       <span className="text-[10px] font-semibold text-primary-700 bg-primary-50 border border-primary-200/60 px-2 py-0.5 rounded-md">
-                        {reminders.length} mới
+                        {dueReminders.length} mới
                       </span>
                     </div>
                     
                     <div className="max-h-[320px] overflow-y-auto custom-scrollbar p-1.5">
-                      {reminders.length === 0 ? (
+                      {dueReminders.length === 0 ? (
                         <div className="p-6 text-center flex flex-col items-center justify-center gap-2">
                           <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
                              <BellRing className="w-4 h-4" />
@@ -220,10 +229,10 @@ export const UserLayout = ({ children }) => {
                           </p>
                         </div>
                       ) : (
-                        reminders.map((rem, idx) => (
+                        dueReminders.map((rem, idx) => (
                           <Link
                             key={idx}
-                            to="/reminders"
+                            to={reminderPath(rem)}
                             onClick={() => setShowNotifications(false)}
                             className="flex items-start gap-3 p-3 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer group"
                           >
@@ -277,6 +286,10 @@ export const UserLayout = ({ children }) => {
         </div>
 
         <div className="p-4 sm:p-6 lg:p-8 w-full pb-24 md:pb-12">
+          <DataStatus error={scheduleError} onRetry={fetchContext} />
+          <HealthPrompt snapshot={snapshot} reminders={reminders} />
+          <ReminderNotice reminders={reminders} />
+          <ContextHelp />
           {children || (
             <AnimatePresence mode="wait">
               <motion.div

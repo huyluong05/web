@@ -3,6 +3,8 @@
 -- Tương thích hoàn toàn với MySQL 5.7+ / 8.0+ / MariaDB
 -- =========================================================================
 
+SET NAMES utf8mb4;
+
 CREATE DATABASE IF NOT EXISTS `vitaltrack_db` 
 CHARACTER SET utf8mb4 
 COLLATE utf8mb4_unicode_ci;

@@ -1,0 +1,197 @@
+{
+  "sourceCommit": "37a458d",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/ping"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/register"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/social-login"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/otp/send"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/otp/verify"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout"
+    },
+    {
+      "method": "POST",
+      "path": "/api/activity/page-view"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/profile"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/profile/password"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health/latest"
+    },
+    {
+      "method": "POST",
+      "path": "/api/health"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/health/:id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/health/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/goals"
+    },
+    {
+      "method": "POST",
+      "path": "/api/goals"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/goals/:id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/goals/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/reminders"
+    },
+    {
+      "method": "POST",
+      "path": "/api/reminders"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/reminders/:id"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/reminders/:id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/devices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/devices"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/dashboard"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/statistics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/users/:id/status"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/users/:id/role"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/users/:id/dossier"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/users/:id"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users/:id/reset-password"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/admin/users/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/settings"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/export"
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/diagnose"
+    },
+    {
+      "method": "POST",
+      "path": "/api/ai/chat"
+    },
+    {
+      "method": "GET",
+      "path": "/api/ai/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/devices"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/pair"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/:deviceId/sync"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/devices/:deviceId"
+    },
+    {
+      "method": "POST",
+      "path": "/api/devices/ingest"
+    },
+    {
+      "method": "GET",
+      "path": "/api/database/status"
+    }
+  ]
+}

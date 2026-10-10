@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect } from "react";
 import { adminApi } from "../../api/client";
 import { useToast } from "../../context/ToastContext";
@@ -21,24 +22,22 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 export const AdminDevicesPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const { success, error } = useToast();
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(""); // Add Device Modal
 const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newDevice, setNewDevice] = useState({
-    userId: 1,
-    name: "Omron Complete HEM-7600T",
-    type: "blood_pressure_monitor",
-    model: "HEM-7600T Smart BLE",
-    macAddress: "F0:B5:D1:44:88:AA",
-    firmwareVersion: "v2.4.1",
-  });
+  const [newDevice, setNewDevice] = useState({ userId: '', name: '', type: 'blood_pressure_monitor', model: '', macAddress: '', firmwareVersion: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const fetchDevices = async () => {
     try {
       setLoading(true);
       const res = await adminApi.getAllDevices();
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
+      if (!Array.isArray(res.data)) { setLoadError('Invalid API response: expected an array.'); return; }
       if (res.success && res.data) {
         setDevices(res.data);
       }
@@ -105,6 +104,7 @@ const [isAddModalOpen, setIsAddModalOpen] = useState(false);
       variants={containerVariants}
       className="flex flex-col flex-1 pb-12"
     >
+      <DataStatus error={loadError} onRetry={fetchDevices} />
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-semibold uppercase tracking-wider mb-2">

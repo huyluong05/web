@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { metricRecords } from '../../utils/metrics';
 export const HealthChart = ({
   records,
   type = "weight",
@@ -7,6 +8,7 @@ export const HealthChart = ({
   title,
   subtitle = "/ Last 30 Days",
 }) => {
+  records = metricRecords(records, type === 'weight' ? ['weight'] : type === 'blood_pressure' ? ['systolic', 'diastolic'] : ['heart_rate']);
   const [hoveredIdx, setHoveredIdx] = useState(null); // Toggle active record on mobile tap
 const handleBarTap = (idx) => {
     setHoveredIdx((prev) => (prev === idx ? null : idx));
@@ -80,7 +82,8 @@ if (type === "weight") {
           {" "}
           <div
             style={{ minWidth: minVisualizerWidth }}
-            className="flex-1 flex items-end justify-between gap-2 sm:gap-4 px-2 min-h-[180px] sm:min-h-[220px] pb-4 pt-10 relative"
+            data-health-chart="weight"
+            className="flex-1 flex items-end justify-between gap-2 sm:gap-4 px-2 h-[220px] sm:h-[260px] pb-4 pt-10 relative"
           >
             {" "}
             {records.map((rec, idx) => {
@@ -93,6 +96,10 @@ if (type === "weight") {
               return (
                 <div
                   key={rec.id || idx}
+                  title={rec.notes || undefined}
+                  tabIndex={0}
+                  onFocus={() => setHoveredIdx(idx)}
+                  onBlur={() => setHoveredIdx(null)}
                   className="flex-1 flex flex-col items-center justify-end h-full relative group cursor-pointer"
                   onClick={() => handleBarTap(idx)}
                   onMouseEnter={() => setHoveredIdx(idx)}
@@ -115,6 +122,7 @@ if (type === "weight") {
                     </div>
                   )}{" "}
                   <div
+                    data-chart-bar="weight"
                     style={{ height: `${heightPercent}%` }}
                     className={`w-full max-w-[48px] rounded-t-sm transition-all duration-300 relative overflow-hidden ${isLatest || isHovered ? "bg-primary-500 text-white" : "bg-primary-100 hover:bg-primary-200"}`}
                   >
@@ -134,7 +142,7 @@ if (type === "weight") {
               month: "short",
             })}
           </span>{" "}
-          <span>Hôm nay</span>{" "}
+          <span>{new Date(records.at(-1).recorded_at).toLocaleDateString('vi-VN')}</span>{" "}
         </div>{" "}
       </div>
     );
@@ -178,7 +186,8 @@ if (type === "weight") {
           {" "}
           <div
             style={{ minWidth: minVisualizerWidth }}
-            className="flex-1 flex items-end justify-between gap-2 sm:gap-4 px-2 min-h-[160px] sm:min-h-[180px] pb-3 pt-8 relative"
+            data-health-chart="blood_pressure"
+            className="flex-1 flex items-end justify-between gap-2 sm:gap-4 px-2 h-[200px] sm:h-[220px] pb-3 pt-8 relative"
           >
             {" "}
             {records.map((rec, idx) => {
@@ -194,6 +203,10 @@ if (type === "weight") {
               return (
                 <div
                   key={rec.id || idx}
+                  title={rec.notes || undefined}
+                  tabIndex={0}
+                  onFocus={() => setHoveredIdx(idx)}
+                  onBlur={() => setHoveredIdx(null)}
                   className="flex-1 flex items-end justify-center gap-1 h-full relative group cursor-pointer"
                   onClick={() => handleBarTap(idx)}
                   onMouseEnter={() => setHoveredIdx(idx)}
@@ -213,10 +226,12 @@ if (type === "weight") {
                     </div>
                   )}{" "}
                   <div
+                    data-chart-bar="systolic"
                     style={{ height: `${sysHeight}%` }}
                     className="w-1/2 max-w-[20px] bg-rose-500 rounded-t-sm"
                   />{" "}
                   <div
+                    data-chart-bar="diastolic"
                     style={{ height: `${diaHeight}%` }}
                     className="w-1/2 max-w-[20px] bg-sky-500 rounded-t-sm"
                   />{" "}
@@ -233,7 +248,7 @@ if (type === "weight") {
               month: "short",
             })}
           </span>{" "}
-          <span>Hôm nay</span>{" "}
+          <span>{new Date(records.at(-1).recorded_at).toLocaleDateString('vi-VN')}</span>{" "}
         </div>{" "}
       </div>
     );
@@ -268,7 +283,8 @@ const hrValues = records.map((r) => r.heart_rate);
         {" "}
         <div
           style={{ minWidth: minVisualizerWidth }}
-          className="flex-1 flex items-end justify-between gap-2 sm:gap-4 px-2 min-h-[160px] sm:min-h-[180px] pb-3 pt-8 relative"
+          data-health-chart="heart_rate"
+          className="flex-1 flex items-end justify-between gap-2 sm:gap-4 px-2 h-[200px] sm:h-[220px] pb-3 pt-8 relative"
         >
           {" "}
           {records.map((rec, idx) => {
@@ -280,6 +296,10 @@ const hrValues = records.map((r) => r.heart_rate);
             return (
               <div
                 key={rec.id || idx}
+                  title={rec.notes || undefined}
+                  tabIndex={0}
+                  onFocus={() => setHoveredIdx(idx)}
+                  onBlur={() => setHoveredIdx(null)}
                 className="flex-1 flex flex-col items-center justify-end h-full relative cursor-pointer"
                 onClick={() => handleBarTap(idx)}
                 onMouseEnter={() => setHoveredIdx(idx)}
@@ -302,6 +322,7 @@ const hrValues = records.map((r) => r.heart_rate);
                   </div>
                 )}{" "}
                 <div
+                  data-chart-bar="heart_rate"
                   style={{ height: `${heightPercent}%` }}
                   className="w-full max-w-[36px] bg-amber-500 hover:bg-amber-600 rounded-t-sm transition-all"
                 />{" "}
@@ -318,7 +339,7 @@ const hrValues = records.map((r) => r.heart_rate);
             month: "short",
           })}
         </span>{" "}
-        <span>Hôm nay</span>{" "}
+        <span>{new Date(records.at(-1).recorded_at).toLocaleDateString('vi-VN')}</span>{" "}
       </div>{" "}
     </div>
   );

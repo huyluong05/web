@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { adminApi } from "../../api/client";
 import {
@@ -31,6 +32,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "../../context/ToastContext";
 
 export const AdminAuditLogsPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const { success } = useToast();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +89,8 @@ export const AdminAuditLogsPage = () => {
         page: currentPage,
         limit: pageSize,
       });
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
       if (res.success && res.data) {
         setLogs(res.data.logs || []);
         if (res.data.pagination) setPagination(res.data.pagination);
@@ -259,6 +264,7 @@ export const AdminAuditLogsPage = () => {
 
   return (
     <motion.div initial="hidden" animate="visible" variants={containerVariants} className="flex flex-col flex-1 pb-8">
+      <DataStatus error={loadError} onRetry={fetchAuditLogs} />
       {/* Header */}
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

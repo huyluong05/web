@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect } from "react";
 import { deviceApi } from "../../api/client";
 import {
@@ -18,10 +19,13 @@ import { Button } from "../../components/common/Button";
 import { motion, AnimatePresence } from "motion/react";
 
 export const DevicesPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncingId, setSyncingId] = useState(null);
   const [showPairModal, setShowPairModal] = useState(false);
+  const [pairing, setPairing] = useState(false);
   const [deviceToDisconnect, setDeviceToDisconnect] = useState(null);
   const [notification, setNotification] = useState(null);
 
@@ -35,6 +39,9 @@ const [newDeviceName, setNewDeviceName] = useState("");
     try {
       setLoading(true);
       const res = await deviceApi.getConnectedDevices();
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
+      if (!Array.isArray(res.data)) { setLoadError('Invalid API response: expected an array.'); return; }
       if (res.success && res.data) {
         setDevices(res.data);
       }
@@ -84,9 +91,11 @@ const [newDeviceName, setNewDeviceName] = useState("");
       if (res.success) {
         setNotification({
           type: "success",
-          text: `Đã ngắt kết nối thiết bị "${name}"`,
+          text: `Đã gỡ thông tin thiết bị "${name}" khỏi tài khoản`,
         });
         fetchDevices();
+      } else {
+        setNotification({ type: 'error', text: res.message || 'Không thể gỡ thiết bị. Vui lòng thử lại.' });
       }
     } catch (err) {
       setNotification({ type: "error", text: "Lỗi khi ngắt kết nối thiết bị" });
@@ -98,7 +107,8 @@ const [newDeviceName, setNewDeviceName] = useState("");
 
   const handlePairSubmit = async (e) => {
     e.preventDefault();
-    if (!newDeviceName.trim()) return;
+    if (!newDeviceName.trim() || pairing) return;
+    setPairing(true);
     try {
       const res = await deviceApi.pairDevice({
         name: newDeviceName.trim(),
@@ -109,7 +119,7 @@ const [newDeviceName, setNewDeviceName] = useState("");
       if (res.success) {
         setNotification({
           type: "success",
-          text: `Đã ghép nối thiết bị "${newDeviceName}" thành công!`,
+          text: `Đã đăng ký thiết bị "${newDeviceName}". Chưa ghép nối Bluetooth.`,
         });
         setShowPairModal(false);
         setNewDeviceName("");
@@ -119,12 +129,12 @@ const [newDeviceName, setNewDeviceName] = useState("");
       } else {
         setNotification({
           type: "error",
-          text: res.message || "Ghép nối thất bại",
+          text: res.message || "Đăng ký thông tin thiết bị thất bại",
         });
       }
     } catch (err) {
-      setNotification({ type: "error", text: "Không thể ghép nối thiết bị" });
-    }
+      setNotification({ type: "error", text: "Không thể lưu thông tin thiết bị" });
+    } finally { setPairing(false); }
     setTimeout(() => setNotification(null), 4000);
   };
 
@@ -164,6 +174,7 @@ const [newDeviceName, setNewDeviceName] = useState("");
       variants={containerVariants}
       className="flex flex-col flex-1 pb-8"
     >
+      <DataStatus error={loadError} onRetry={fetchDevices} />
       {/* Header */}
       <header className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
@@ -175,7 +186,7 @@ const [newDeviceName, setNewDeviceName] = useState("");
             Thiết Bị Ngoại Vi
           </h1>
           <p className="text-sm text-slate-500 font-medium mt-1.5">
-            Đồng bộ dữ liệu sinh trắc học thời gian thực từ phần cứng y tế cá nhân
+            Đăng ký thiết bị để quản lý. Ghép nối Bluetooth và đồng bộ số đo cần tích hợp riêng của nhà sản xuất.
           </p>
         </div>
         <Button
@@ -184,7 +195,7 @@ const [newDeviceName, setNewDeviceName] = useState("");
           leftIcon={<Plus className="w-4 h-4" />}
           className="w-full sm:w-auto"
         >
-          Ghép nối thiết bị
+          Đăng ký thiết bị
         </Button>
       </header>
 
@@ -220,13 +231,13 @@ const [newDeviceName, setNewDeviceName] = useState("");
         {loading ? (
           <div className="col-span-full py-16 text-center text-slate-500 bg-slate-50 rounded-lg border border-slate-200 border-dashed flex flex-col items-center justify-center">
             <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-blue-600" />
-            <span className="font-semibold text-sm">Đang quét danh sách thiết bị...</span>
+            <span className="font-semibold text-sm">Đang tải danh sách thiết bị...</span>
           </div>
         ) : devices.length === 0 ? (
           <div className="col-span-full py-16 text-center text-slate-500 bg-slate-50 rounded-lg border border-slate-200 border-dashed flex flex-col items-center justify-center">
             <Layers className="w-10 h-10 mx-auto mb-3 text-slate-500" />
             <span className="font-semibold text-sm">
-              Chưa có thiết bị nào được ghép nối. Nhấn <b className="text-slate-700">"Ghép nối thiết bị"</b> để bắt đầu.
+              Chưa có thiết bị đăng ký. Nhấn <b className="text-slate-700">"Đăng ký thiết bị"</b> để thêm thông tin; bạn vẫn có thể ghi nhận số đo thủ công.
             </span>
           </div>
         ) : (
@@ -246,9 +257,9 @@ const [newDeviceName, setNewDeviceName] = useState("");
                     <div className="flex flex-col items-end gap-1.5">
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Đã kết nối
+                        {device.status === 'connected' ? 'Trạng thái đã lưu: kết nối' : device.status === 'disconnected' ? 'Đã ngắt' : 'Đã đăng ký — chờ dữ liệu'}
                       </span>
-                      {device.batteryLevel !== undefined && (
+                      {device.batteryLevel != null && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
                           <Battery className="w-3 h-3 text-slate-500" />
                           {device.batteryLevel}%
@@ -343,7 +354,7 @@ const [newDeviceName, setNewDeviceName] = useState("");
                 <strong className="font-bold text-slate-900">
                   {deviceToDisconnect.name}
                 </strong>
-                ? Thiết bị sẽ ngừng gửi dữ liệu.
+                ? Thao tác này gỡ thông tin đã lưu; kết nối phần cứng cần được quản lý trong ứng dụng của nhà sản xuất.
               </p>
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setDeviceToDisconnect(null)}>
@@ -375,7 +386,7 @@ const [newDeviceName, setNewDeviceName] = useState("");
             >
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
                 <h3 className="text-lg font-bold text-slate-900">
-                  Ghép nối thiết bị
+                  Đăng ký thông tin thiết bị
                 </h3>
                 <button
                   onClick={() => setShowPairModal(false)}
@@ -411,7 +422,7 @@ const [newDeviceName, setNewDeviceName] = useState("");
                     <option value="smartwatch">Đồng hồ Thông minh</option>
                     <option value="smart_scale">Cân điện tử</option>
                     <option value="pulse_oximeter">Máy đo SPO2</option>
-                    <option value="other">Thiết bị khác</option>
+                    <option value="glucose_meter">Máy đo đường huyết</option>
                   </select>
                 </div>
                 <div>
@@ -433,12 +444,14 @@ const [newDeviceName, setNewDeviceName] = useState("");
                   <input
                     type="text"
                     value={newDeviceMac}
+                    pattern="([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}"
                     onChange={(e) => setNewDeviceMac(e.target.value)}
                     placeholder="Ví dụ: 00:1B:44:11:3A:B7"
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:border-blue-500 text-sm font-mono text-slate-800 transition-colors"
                   />
                 </div>
                 <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                  <details className="text-xs text-slate-600"><summary className="cursor-pointer">Địa chỉ MAC là gì?</summary><p className="mt-2">MAC là mã nhận dạng mạng của thiết bị, gồm 6 cặp ký tự như AA:BB:CC:11:22:33. Tìm trên nhãn thiết bị, mục Thông tin/About trong ứng dụng nhà sản xuất hoặc sách hướng dẫn. Có thể bỏ trống; trình duyệt không luôn cung cấp MAC của Bluetooth.</p></details>
                   <Button
                     type="button"
                     variant="outline"
@@ -446,8 +459,8 @@ const [newDeviceName, setNewDeviceName] = useState("");
                   >
                     Hủy
                   </Button>
-                  <Button type="submit" variant="primary">
-                    Bắt đầu ghép nối
+                  <Button type="submit" variant="primary" disabled={pairing}>
+                    {pairing ? 'Đang lưu...' : 'Đăng ký thiết bị'}
                   </Button>
                 </div>
               </form>
