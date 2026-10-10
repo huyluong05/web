@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { UserHeader } from "../../components/layout/UserHeader";
 import { Button } from "../../components/common/Button";
 import { RecordMetricModal } from "../../components/forms/RecordMetricModal";
@@ -7,6 +7,10 @@ import { useToast } from "../../context/ToastContext";
 import { Plus, Edit2, Trash2, Activity, Scale, Heart, Droplets } from "lucide-react";
 import { Modal } from "../../components/common/Modal";
 import { motion } from "motion/react";
+import { useDataSync } from '../../hooks/useDataSync';
+import { DataStatus } from '../../components/common/DataStatus';
+import { HealthDataStatus } from '../../components/common/HealthDataStatus';
+import { useSearchParams } from 'react-router-dom';
 
 export const HealthMetricsPage = () => {
   const { success, error } = useToast();
@@ -15,30 +19,39 @@ export const HealthMetricsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [current, setCurrent] = useState({}), [loadError, setLoadError] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => { if (searchParams.get('record') === '1') { setEditingRecord(null); setIsModalOpen(true); setSearchParams({}, { replace: true }); } }, [searchParams, setSearchParams]);
 
+  const loadVersion = useRef(0);
   const fetchRecords = async () => {
+    const version = ++loadVersion.current;
     try {
       setLoading(true);
-      const res = await healthApi.getAll("all");
+      const [res, snapshot] = await Promise.all([healthApi.getAll('all'), healthApi.getLatest()]);
+      if (version !== loadVersion.current) return;
+      setLoadError([res, snapshot].filter(r => !r.success).map(r => r.message).join(' · '));
+      if (snapshot.success) setCurrent(snapshot.data.current ?? {});
       if (res.success && res.data) {
         // Sort newest first for table view
         const sorted = [...res.data].sort(
           (a, b) =>
             new Date(b.recorded_at).getTime() -
-            new Date(a.recorded_at).getTime(),
+            new Date(a.recorded_at).getTime() || Number(b.id) - Number(a.id),
         );
         setRecords(sorted);
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchRecords();
   }, []);
+  useDataSync(fetchRecords, ['health'], true);
 
   const handleEdit = (rec) => {
     setEditingRecord(rec);
@@ -95,6 +108,8 @@ export const HealthMetricsPage = () => {
       />
 
       {/* Summary Stat Bars */}
+      <DataStatus loading={loading} error={loadError} onRetry={fetchRecords} />
+      <HealthDataStatus current={current} />
       <motion.div
         variants={itemVariants}
         className="grid grid-cols-1 md:grid-cols-3 gap-6"
@@ -110,7 +125,7 @@ export const HealthMetricsPage = () => {
           </div>
           <div className="mt-auto flex items-baseline gap-1.5">
             <p className="text-4xl font-bold text-slate-900 tracking-tight">
-              {records[0] ? `${records[0].weight}` : "--"}
+              {current.weight?.value ?? "--"}
             </p>
             <span className="text-sm text-slate-500 font-semibold">kg</span>
           </div>
@@ -122,13 +137,13 @@ export const HealthMetricsPage = () => {
               <Heart className="w-5 h-5" />
             </div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Huyết áp mới nhất
+              Cặp huyết áp cùng lần đo mới nhất
             </p>
           </div>
           <div className="mt-auto flex items-baseline gap-1.5">
             <p className="text-4xl font-bold text-slate-900 tracking-tight">
-              {records[0]
-                ? `${records[0].systolic}/${records[0].diastolic}`
+              {current.blood_pressure
+                ? `${current.blood_pressure.value}/${current.blood_pressure.diastolic}`
                 : "--/--"}
             </p>
             <span className="text-sm font-semibold text-slate-500">mmHg</span>
@@ -146,7 +161,7 @@ export const HealthMetricsPage = () => {
           </div>
           <div className="mt-auto flex items-baseline gap-1.5">
             <p className="text-4xl font-bold text-slate-900 tracking-tight">
-              {records[0] ? `${records[0].heart_rate}` : "--"}
+              {current.heart_rate?.value ?? "--"}
             </p>
             <span className="text-sm text-slate-500 font-semibold">bpm</span>
           </div>
@@ -180,7 +195,7 @@ export const HealthMetricsPage = () => {
           </Button>
         </div>
 
-        {records.length === 0 ? (
+        {!loading && !loadError && records.length === 0 ? (
           <div className="text-center py-16 bg-slate-50 rounded-xl border border-slate-100/60 border-dashed">
             <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center mx-auto mb-4 border border-primary-100/50">
               <Activity className="w-6 h-6" />
@@ -315,7 +330,7 @@ export const HealthMetricsPage = () => {
                         <span className="font-bold text-primary-600 text-base">{rec.heart_rate}</span>
                         <span className="text-slate-400 text-xs ml-1 font-semibold">bpm</span>
                       </td>
-                      <td className="py-4 px-4 text-slate-600 font-medium max-w-[250px] truncate">
+                      <td className="py-4 px-4 text-slate-600 font-medium max-w-[250px] break-words">
                         {rec.notes ? (
                           <span>{rec.notes}</span>
                         ) : (

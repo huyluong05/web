@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useId } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X } from "lucide-react";
 
@@ -10,19 +10,34 @@ export const Modal = ({
   children,
   maxWidth = "md",
 }) => {
+  const dialogRef = useRef(null), closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const titleId = useId();
   useEffect(() => {
+    if (!isOpen) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    const focusable = () => [...(dialogRef.current?.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]') ?? [])];
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
+      if (e.key === 'Tab') {
+        const nodes = focusable(), first = nodes[0], last = nodes.at(-1);
+        if (!first) { e.preventDefault(); dialogRef.current?.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
     };
     if (isOpen) {
       document.body.style.overflow = "hidden";
       window.addEventListener("keydown", handleKeyDown);
+      const frame = requestAnimationFrame(() => (focusable()[0] ?? dialogRef.current)?.focus());
+      return () => { cancelAnimationFrame(frame); document.body.style.overflow = previousOverflow; window.removeEventListener('keydown', handleKeyDown); previousFocus?.focus?.(); };
     }
     return () => {
       document.body.style.overflow = "unset";
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const maxWidthClasses = {
     sm: "max-w-sm",
@@ -47,6 +62,11 @@ export const Modal = ({
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ type: "spring", bounce: 0, duration: 0.35 }}
@@ -54,7 +74,7 @@ export const Modal = ({
           >
             <div className="flex items-start justify-between mb-6 pb-5 border-b border-slate-100">
               <div>
-                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                <h3 id={titleId} className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   {title}
                 </h3>
                 {subtitle && (

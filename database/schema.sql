@@ -3,6 +3,7 @@
 -- Project: VitalTrack - Personal Health Tracking System
 -- ==========================================================
 
+SET NAMES utf8mb4;
 CREATE DATABASE IF NOT EXISTS vitaltrack CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE vitaltrack;
 

@@ -7,19 +7,31 @@ import { remindersApi } from "../../api/client";
 import { useToast } from "../../context/ToastContext";
 import { Droplets, Activity, Edit2, Trash2, Check, Clock } from "lucide-react";
 import { motion } from "motion/react";
+import { useDataSync } from '../../hooks/useDataSync';
+import { DataStatus } from '../../components/common/DataStatus';
+import { ReminderOccurrence } from '../../components/common/ReminderOccurrence';
+import { REMINDER_TYPES } from '../../utils/reminders';
+import { useAuth } from '../../context/AuthContext';
 
 export const RemindersPage = () => {
+  const { user } = useAuth();
+  const userId = user?.id;
   const { success, error } = useToast();
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [scheduling, setScheduling] = useState(false), [loadError, setLoadError] = useState(''), [tick, setTick] = useState(0);
+  useEffect(() => { const timer = setInterval(() => setTick(t => t + 1), 30000); return () => clearInterval(timer); }, []);
+  const complete = async (rem, completed) => { const res = await remindersApi.update(rem.id, { complete: completed, occurrence_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }); if (res.success) { setReminders(old => old.map(r => r.id === rem.id ? res.data : r)); success(completed ? 'Đã hoàn thành lịch hôm nay.' : 'Đã bỏ trạng thái hoàn thành.'); } else error(res.message); };
 
   const fetchReminders = async () => {
     try {
       setLoading(true);
       const res = await remindersApi.getAll();
+      setLoadError(res.success ? '' : res.message);
+      if (res.success) setScheduling(!!res.capabilities?.scheduling);
       if (res.success && res.data) {
         setReminders(res.data);
       }
@@ -33,6 +45,7 @@ export const RemindersPage = () => {
   useEffect(() => {
     fetchReminders();
   }, []);
+  useDataSync(fetchReminders, ['reminders'], true);
 
   const handleToggleActive = async (rem) => {
     const newStatus = !rem.is_active;
@@ -95,7 +108,7 @@ export const RemindersPage = () => {
       <UserHeader
         title="Lịch trình"
         italicTitle="Nhắc nhở"
-        subtitle="Lịch nhắc nhở uống nước và rèn luyện thể dục hàng ngày"
+        subtitle="Lịch uống nước, vận động, ghi nhận chỉ số và thuốc theo chỉ định"
         onRecordClick={() => {
           setEditingReminder(null);
           setIsModalOpen(true);
@@ -173,9 +186,10 @@ export const RemindersPage = () => {
                       >
                         <Clock className="w-3.5 h-3.5" /> {rem.time_of_day}
                       </p>
+                      <ReminderOccurrence reminder={rem} onComplete={complete} scheduling={scheduling} />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                  <div className="flex items-center gap-1.5 shrink-0 transition-opacity ml-2">
                     <button
                       onClick={() => {
                         setEditingReminder(rem);
@@ -266,9 +280,10 @@ export const RemindersPage = () => {
                       >
                         <Clock className="w-3.5 h-3.5" /> {rem.time_of_day}
                       </p>
+                      <ReminderOccurrence reminder={rem} onComplete={complete} scheduling={scheduling} />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                  <div className="flex items-center gap-1.5 shrink-0 transition-opacity ml-2">
                     <button
                       onClick={() => {
                         setEditingReminder(rem);
@@ -294,6 +309,9 @@ export const RemindersPage = () => {
         </motion.div>
       </motion.div>
 
+      <DataStatus loading={loading} error={loadError} onRetry={fetchReminders} />
+      {['measurement', 'medication'].map(type => <section key={type} className="bg-white border border-slate-200 rounded-2xl p-5 mt-4"><h2 className="font-bold mb-3">{REMINDER_TYPES[type]}</h2>{reminders.filter(r => r.type === type).length === 0 ? <p className="text-sm text-slate-500">Chưa có lịch. Chọn Thêm nhắc nhở mới để thiết lập.</p> : reminders.filter(r => r.type === type).map(rem => <div key={rem.id} className="py-3 border-t border-slate-100"><p className="font-semibold break-words">{rem.title} · {String(rem.time_of_day).slice(0, 5)}</p><ReminderOccurrence reminder={rem} onComplete={complete} scheduling={scheduling} /><div className="flex flex-wrap gap-4 text-sm mt-2"><button onClick={() => handleToggleActive(rem)}>{rem.is_active ? 'Tắt lịch' : 'Bật lịch'}</button><button onClick={() => { setEditingReminder(rem); setIsModalOpen(true); }}>Chỉnh sửa</button><button className="text-rose-700" onClick={() => setDeletingId(rem.id)}>Xóa</button></div></div>)}</section>)}
+      <details className="mt-4 p-3 border rounded-xl text-sm"><summary className="cursor-pointer">Tùy chọn lời nhắc sau đăng nhập</summary><p className="mt-2">Lựa chọn được lưu riêng cho tài khoản trên trình duyệt này.</p><button className="mt-2 text-primary-700 underline" onClick={() => { try { localStorage.removeItem(`vitaltrack_measure_prompt_${userId}`); sessionStorage.removeItem(`vitaltrack_measure_prompt_${userId}_seen`); success('Đã bật lại lời nhắc; áp dụng khi bạn mở lại trang.'); } catch { error('Trình duyệt không cho lưu tùy chọn.'); } }}>Bật lại lời nhắc ghi nhận chỉ số</button></details>
       {/* Reminder Modal */}
       <ReminderModal
         isOpen={isModalOpen}

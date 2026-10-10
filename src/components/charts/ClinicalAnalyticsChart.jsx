@@ -1,15 +1,19 @@
 import React, { useState, useMemo } from "react";
+import { metricRecords } from '../../utils/metrics';
 import { Activity, Heart } from "lucide-react";
 export const ClinicalAnalyticsChart = ({
   records,
   title = "Biểu Đồ Xu Hướng Huyết Áp & Chỉ Số Lâm Sàng",
-  subtitle = "Phân tầng theo Tiêu chuẩn Tim mạch Quốc tế AHA / ESC",
+  subtitle = "Đối chiếu khoảng huyết áp AHA; không xác định bệnh. Biểu đồ này dùng các lần đo có đủ huyết áp và nhịp tim.",
   height = 360,
   showAhaZones = true,
   showMap: initialShowMap = false,
   showPulsePressure: initialShowPulse = false,
   onRecordClick,
 }) => {
+  // This combined view needs simultaneous BP and pulse measurements. Other
+  // charts and history continue to include valid partial measurements.
+  records = useMemo(() => metricRecords(records, ['systolic', 'diastolic', 'heart_rate']), [records]);
   const [timeFilter, setTimeFilter] = useState("30d");
   const [visibleMetrics, setVisibleMetrics] = useState({
     systolic: true,

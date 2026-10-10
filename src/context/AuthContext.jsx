@@ -7,7 +7,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.getItem("vitaltrack_token"),
   );
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
   const refreshUser = async () => {
+    setAuthError('');
     const savedToken = localStorage.getItem("vitaltrack_token");
     if (!savedToken) {
       setUser(null);
@@ -18,21 +20,27 @@ export const AuthProvider = ({ children }) => {
       const res = await authApi.getMe();
       if (res.success && res.data) {
         setUser(res.data);
-      } else {
+      } else if (res.status === 401 || res.status === 403) {
         localStorage.removeItem("vitaltrack_token");
         setUser(null);
         setToken(null);
+      } else {
+        setAuthError(res.message || 'Chưa thể kiểm tra phiên đăng nhập.');
       }
     } catch {
-      localStorage.removeItem("vitaltrack_token");
-      setUser(null);
-      setToken(null);
+      // A temporary network failure must not discard a valid stored session.
+      setAuthError('Lỗi kết nối khi kiểm tra phiên đăng nhập.');
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => {
     refreshUser();
+    const expired = () => { localStorage.removeItem('vitaltrack_token'); setToken(null); setUser(null); };
+    const storage = e => { if (e.key === 'vitaltrack_token') { setToken(e.newValue); refreshUser(); } };
+    window.addEventListener('vitaltrack:auth-expired', expired);
+    window.addEventListener('storage', storage);
+    return () => { window.removeEventListener('vitaltrack:auth-expired', expired); window.removeEventListener('storage', storage); };
   }, []);
   const login = async (credentials) => {
     const res = await authApi.login(credentials);
@@ -40,6 +48,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("vitaltrack_token", res.data.token);
       setToken(res.data.token);
       setUser(res.data.user);
+      try { sessionStorage.removeItem(`vitaltrack_measure_prompt_${res.data.user.id}_seen`); } catch { /* Optional preference storage. */ }
       return { success: true, message: res.message };
     }
     return {
@@ -53,6 +62,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("vitaltrack_token", res.data.token);
       setToken(res.data.token);
       setUser(res.data.user);
+      try { sessionStorage.removeItem(`vitaltrack_measure_prompt_${res.data.user.id}_seen`); } catch { /* Optional preference storage. */ }
       return { success: true, message: res.message };
     }
     return {
@@ -66,6 +76,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("vitaltrack_token", res.data.token);
       setToken(res.data.token);
       setUser(res.data.user);
+      try { sessionStorage.removeItem(`vitaltrack_measure_prompt_${res.data.user.id}_seen`); } catch { /* Optional preference storage. */ }
       return {
         success: true,
         message: res.message,
@@ -87,6 +98,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("vitaltrack_token", res.data.token);
       setToken(res.data.token);
       setUser(res.data.user);
+      try { sessionStorage.removeItem(`vitaltrack_measure_prompt_${res.data.user.id}_seen`); } catch { /* Optional preference storage. */ }
       return {
         success: true,
         message: res.message,
@@ -126,6 +138,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user && !!token,
     isAdmin: user?.role === "admin",
     loading,
+    authError,
     login,
     register,
     socialLogin,

@@ -1,3 +1,11 @@
+import { registerSettingsRoutes, readSettings } from './server/settings-routes.js';
+import { profileFields } from './server/profile-fields.js';
+import { registerReminderRoutes } from './server/reminder-routes.js';
+import { registerDeviceWriteRoutes } from './server/device-routes.js';
+import { registerAIRoutes, formatDiagnosis } from './server/ai-routes.js';
+import { registerAdminRoutes } from './server/admin-routes.js';
+import { registerHealthRoutes } from './server/health-routes.js';
+import { loadHealthSnapshot, healthCapabilities, validateRecord, syncGoals, inTransaction, DEVICE_TYPES, progress, goalWithCurrent, insertUserWithoutGuessedBiometrics, validMetric, riskCategory } from './server/health-domain.js';
 import express from "express";
 import path from "path";
 import cors from "cors";
@@ -39,11 +47,21 @@ export function getMySQLPool() {
             user: process.env.MYSQL_USER || "root",
             password: process.env.MYSQL_PASSWORD || "123456", // Mật khẩu CSDL MySQL theo cấu hình
             database: process.env.MYSQL_DATABASE || "vitaltrack_db",
+            charset: "utf8mb4",
             waitForConnections: true,
             connectionLimit: 10,
             queueLimit: 0,
             connectTimeout: 5000,
+            timezone: "Z",
             ...(ssl ? { ssl } : {}),
+        });
+        // mysql2 timezone controls JS conversion; the session also needs UTC for
+        // NOW(), TIMESTAMP defaults and the new nullable updated_at column.
+        // This changes only new connection sessions, never stored legacy values.
+        mysqlPool.on('connection', connection => {
+            connection.query("SET time_zone = '+00:00'", error => {
+                if (error) connection.destroy();
+            });
         });
     }
     return mysqlPool;
@@ -57,8 +75,10 @@ export function getMySQLPool() {
 //   + Frontend Client (Vite): Cổng 5173 (Ví dụ: npm run client)
 //   + Vite đã cấu hình tự động proxy /api tới http://localhost:5000
 // =========================================================================
+const getDefaultPool = getMySQLPool;
 const isApiOnly = process.env.API_ONLY === "true" || process.argv.includes("--api-only");
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : (isApiOnly ? 5000 : 3000);
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) throw new Error("JWT_SECRET is required in production");
 const JWT_SECRET = process.env.JWT_SECRET || "vitaltrack_secret_key_2026_secure";
 const dbConnectedDevices = [
     {
@@ -114,6 +134,7 @@ let dbSystemSettings = {
 };
 // Active in-memory tracking
 const activeSessionsMap = new Map();
+const revokedSessions = new Set();
 const dbOtpStore = new Map();
 const dbSystemLogs = [];
 let nextLogId = 1;
@@ -201,7 +222,7 @@ async function createAuditLog({
     }
 
     try {
-        const pool = getMySQLPool();
+        const pool = (req?.app?.locals.pool?.() || getMySQLPool());
         // Convert to MySQL DATETIME format (YYYY-MM-DD HH:MM:SS) if it's ISO
         let sqlDate = newAuditLog.created_at;
         if (sqlDate && sqlDate.includes('T')) {
@@ -227,7 +248,7 @@ async function createAuditLog({
             ]
         );
     } catch (dbErr) {
-        console.error('Error inserting audit log into MySQL:', dbErr);
+        console.error('Error inserting audit log into MySQL:', dbErr.code || 'AUDIT_WRITE_FAILED');
     }
 
     // Ghi vào danh sách log hệ thống phụ để đảm bảo tính tương thích ngược
@@ -238,34 +259,6 @@ async function createAuditLog({
         ip: clientIp,
         userAgent: clientUA
     });
-
-    // Lưu vào MySQL nếu bể kết nối đang sẵn sàng
-    try {
-        const pool = getMySQLPool();
-        if (pool) {
-            await pool.query(
-                `INSERT INTO audit_logs (user_id, user_name, user_role, action, module, page, resource_type, resource_id, description, metadata, ip_address, user_agent, status, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-                [
-                    userId,
-                    userName || 'Khách vãng lai',
-                    userRole || 'guest',
-                    action,
-                    module,
-                    page,
-                    resourceType,
-                    resourceId !== null && resourceId !== undefined ? String(resourceId) : null,
-                    description,
-                    cleanMeta ? JSON.stringify(cleanMeta) : null,
-                    clientIp || '127.0.0.1',
-                    clientUA || 'Browser Client',
-                    status === 'FAILED' ? 'FAILED' : 'SUCCESS'
-                ]
-            );
-        }
-    } catch (e) {
-        // Tiếp tục chế độ in-memory nếu MySQL chưa được khởi động
-    }
 
     return newAuditLog;
 }
@@ -305,7 +298,7 @@ function cleanExpiredSessions() {
 const samplePastTime = (minutesAgo) => new Date(Date.now() - minutesAgo * 60000).toISOString();
 
 // Seed initial audit logs for demonstrative auditing
-dbAuditLogs.push(
+if (process.env.ALLOW_DEMO_DATA === "true" && process.env.NODE_ENV !== "production") dbAuditLogs.push(
     {
         id: nextAuditLogId++,
         user_id: 2,
@@ -556,7 +549,7 @@ dbSystemLogs.push({
     timestamp: samplePastTime(180),
 });
 // Initial active session for demo
-activeSessionsMap.set("session_admin_init", {
+if (process.env.ALLOW_DEMO_DATA === "true" && process.env.NODE_ENV !== "production") activeSessionsMap.set("session_admin_init", {
     sessionId: "session_admin_init",
     userId: 2,
     userName: "Quản Trị Viên",
@@ -567,7 +560,7 @@ activeSessionsMap.set("session_admin_init", {
     loginAt: samplePastTime(25),
     lastActivityAt: new Date().toISOString(),
 });
-activeSessionsMap.set("session_user_init", {
+if (process.env.ALLOW_DEMO_DATA === "true" && process.env.NODE_ENV !== "production") activeSessionsMap.set("session_user_init", {
     sessionId: "session_user_init",
     userId: 1,
     userName: "Nguyễn Văn An",
@@ -862,15 +855,8 @@ const dbReminders = [
         created_at: generateDateString(15),
     },
 ];
-// Helper to calculate goal progress percentage
-function calculateProgress(goal) {
-    if (goal.start_value === goal.target_value)
-        return 100;
-    const totalChangeNeeded = Math.abs(goal.target_value - goal.start_value);
-    const currentChangeMade = Math.abs(goal.current_value - goal.start_value);
-    const rawPercent = Math.min(100, Math.max(0, (currentChangeMade / totalChangeNeeded) * 100));
-    return Math.round(rawPercent);
-}
+// Goal progress is shared by HTTP routes and regression tests.
+const calculateProgress = progress;
 const authenticateJWT = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -883,7 +869,7 @@ const authenticateJWT = async (req, res, next) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         // Check if user still exists and is active using MySQL database
-        const pool = getMySQLPool();
+        const pool = req.app.locals.pool();
         const [users] = await pool.query('SELECT id, email, role, full_name, is_active FROM users WHERE id = ?', [decoded.id]);
         const user = users[0];
 
@@ -893,6 +879,9 @@ const authenticateJWT = async (req, res, next) => {
                 message: "Tài khoản không tồn tại hoặc đã bị khóa.",
             });
         }
+        if (decoded.sessionId && revokedSessions.has(decoded.sessionId)) return res.status(401).json({ success: false, message: "Session ended." });
+        req.sessionId = decoded.sessionId;
+        if (decoded.sessionId && activeSessionsMap.has(decoded.sessionId)) activeSessionsMap.get(decoded.sessionId).lastActivityAt = new Date().toISOString();
         req.user = {
             id: user.id,
             email: user.email,
@@ -902,6 +891,7 @@ const authenticateJWT = async (req, res, next) => {
         next();
     }
     catch (err) {
+        if (!["JsonWebTokenError", "TokenExpiredError", "NotBeforeError"].includes(err.name)) return res.status(503).json({ success: false, message: "Cannot verify session: data service temporarily unavailable." });
         return res.status(401).json({
             success: false,
             message: "Token không hợp lệ hoặc đã hết hạn.",
@@ -920,10 +910,18 @@ const requireAdmin = (req, res, next) => {
 // Helper to return user object without sensitive password field
 function sanitizeUser(user) {
     const { password, ...safeUser } = user;
+    for (const field of ['chronic_conditions', 'allergies']) {
+        const value = typeof safeUser[field] === 'string' ? JSON.parse(safeUser[field]) : safeUser[field] ?? [];
+        if (!Array.isArray(value)) throw Object.assign(new Error('Invalid stored profile data'), { code: 'PROFILE_DATA_INVALID' });
+        safeUser[field] = value;
+    }
+    if (typeof safeUser.vital_alert_thresholds === 'string') safeUser.vital_alert_thresholds = JSON.parse(safeUser.vital_alert_thresholds);
     return safeUser;
 }
-async function startServer() {
+export async function startServer({ pool: injectedPool, listen = true, apiOnly = isApiOnly } = {}) {
     const app = express();
+    const getMySQLPool = () => injectedPool || getDefaultPool();
+    app.locals.pool = getMySQLPool;
     // Basic Middlewares
     const configuredOrigins = (process.env.CORS_ORIGINS || "")
         .split(",")
@@ -978,18 +976,13 @@ async function startServer() {
 
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            const [userResult] = await pool.execute(
-                'INSERT INTO users (full_name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?)',
+            const [userResult] = await insertUserWithoutGuessedBiometrics(pool, ['full_name', 'email', 'password', 'role', 'is_active'],
                 [trimmedName, trimmedEmail, hashedPassword, 'user', 1]
             );
             const newUserId = userResult.insertId;
             const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [newUserId]);
             const newUser = newUsers[0];
 
-            await pool.execute(
-                'INSERT INTO goals (user_id, title, metric_type, start_value, target_value, current_value, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [newUser.id, "Duy trì cân nặng lý tưởng", "weight", 70, 65, 70, "kg", "in_progress"]
-            );
             await pool.execute(
                 'INSERT INTO reminders (user_id, type, title, time_of_day, is_active) VALUES (?, ?, ?, ?, ?)',
                 [newUser.id, "water", "Uống ly nước buổi sáng", "08:00", 1]
@@ -1008,10 +1001,10 @@ async function startServer() {
                 metadata: { email: newUser.email, full_name: newUser.full_name }, status: "SUCCESS", req
             });
 
-            const token = jwt.sign({ id: newUser.id, email: newUser.email, role: newUser.role, full_name: newUser.full_name }, JWT_SECRET, { expiresIn: "7d" });
+            const sessionId = `sess_${newUser.id}_${Date.now()}`;
+            const token = jwt.sign({ id: newUser.id, email: newUser.email, role: newUser.role, full_name: newUser.full_name, sessionId }, JWT_SECRET, { expiresIn: "7d" });
 
             cleanExpiredSessions();
-            const sessionId = `sess_${newUser.id}_${Date.now()}`;
             activeSessionsMap.set(sessionId, {
                 sessionId, userId: newUser.id, userName: newUser.full_name, userEmail: newUser.email, userRole: newUser.role,
                 ipAddress: clientIp, userAgent, loginAt: new Date().toISOString(), lastActivityAt: new Date().toISOString()
@@ -1026,8 +1019,8 @@ async function startServer() {
                 }
             });
         } catch (err) {
-            console.error('Error in register:', err);
-            return res.status(500).json({ success: false, message: "Lỗi server khi đăng ký.", error: err.message });
+            console.error('Error in register:', err.code || err.name);
+            return res.status(500).json({ success: false, message: "Lỗi server khi đăng ký." });
         }
     });
     // Login
@@ -1233,11 +1226,12 @@ async function startServer() {
             });
         }
         catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi hệ thống khi xác thực đăng nhập.", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi hệ thống khi xác thực đăng nhập." });
         }
     });
     // POST /api/auth/social-login (Google, Apple)
     app.post("/api/auth/social-login", async (req, res) => {
+        if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEMO_AUTH !== "true") return res.status(503).json({ success: false, message: "Provider authentication unavailable. Please use email and password." });
         try {
             const { provider = "google", email, full_name, avatar_url } = req.body;
             if (!email || typeof email !== "string" || !email.includes("@")) {
@@ -1278,8 +1272,7 @@ async function startServer() {
 
                 const randomPassword = await bcrypt.hash(Math.random().toString(36), 10);
 
-                const [insertResult] = await pool.execute(
-                    'INSERT INTO users (full_name, email, password, role, is_active, avatar_url) VALUES (?, ?, ?, ?, ?, ?)',
+                const [insertResult] = await insertUserWithoutGuessedBiometrics(pool, ['full_name', 'email', 'password', 'role', 'is_active', 'avatar_url'],
                     [displayName, trimmedEmail, randomPassword, 'user', 1, defaultAvatar]
                 );
 
@@ -1288,10 +1281,6 @@ async function startServer() {
                 user = newUsers[0];
 
                 // Add default starter health goals & reminders
-                await pool.execute(
-                    'INSERT INTO goals (user_id, title, metric_type, start_value, target_value, current_value, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [user.id, "Duy trì cân nặng lý tưởng", "weight", 70, 65, 70, "kg", "in_progress"]
-                );
                 await pool.execute(
                     'INSERT INTO reminders (user_id, type, title, time_of_day, is_active) VALUES (?, ?, ?, ?, ?)',
                     [user.id, "water", "Uống ly nước buổi sáng", "08:00", 1]
@@ -1343,12 +1332,13 @@ async function startServer() {
                 },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi xử lý xác thực xã hội.", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi xử lý xác thực xã hội." });
         }
     });
 
     // POST /api/auth/otp/send (Send OTP to email or phone)
     app.post("/api/auth/otp/send", (req, res) => {
+        if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEMO_AUTH !== "true") return res.status(503).json({ success: false, message: "Provider authentication unavailable. Please use email and password." });
         try {
             const { identifier } = req.body;
             if (!identifier || typeof identifier !== "string" || identifier.trim().length < 4) {
@@ -1392,12 +1382,13 @@ async function startServer() {
                 },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi tạo mã xác thực.", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi tạo mã xác thực." });
         }
     });
 
     // POST /api/auth/otp/verify (Verify OTP & Login / Auto-register)
     app.post("/api/auth/otp/verify", async (req, res) => {
+        if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEMO_AUTH !== "true") return res.status(503).json({ success: false, message: "Provider authentication unavailable. Please use email and password." });
         try {
             const { identifier, code, full_name } = req.body;
             if (!identifier || !code) {
@@ -1447,19 +1438,13 @@ async function startServer() {
 
                 const randomPassword = await bcrypt.hash(Math.random().toString(36), 10);
 
-                const [insertResult] = await pool.execute(
-                    'INSERT INTO users (full_name, email, phone_number, password, role, is_active) VALUES (?, ?, ?, ?, ?, ?)',
+                const [insertResult] = await insertUserWithoutGuessedBiometrics(pool, ['full_name', 'email', 'phone_number', 'password', 'role', 'is_active'],
                     [displayName, emailToUse, isEmail ? null : key, randomPassword, 'user', 1]
                 );
 
                 const newUserId = insertResult.insertId;
                 const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [newUserId]);
                 user = newUsers[0];
-
-                await pool.execute(
-                    'INSERT INTO goals (user_id, title, metric_type, start_value, target_value, current_value, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [user.id, "Theo dõi chỉ số mỗi ngày", "blood_pressure", 120, 115, 120, "mmHg", "in_progress"]
-                );
             }
 
             cleanExpiredSessions();
@@ -1509,19 +1494,20 @@ async function startServer() {
                 },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi xác minh mã xác thực.", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi xác minh mã xác thực." });
         }
     });
 
     // Đăng xuất người dùng
     app.post("/api/auth/logout", authenticateJWT, async (req, res) => {
+        if (req.sessionId) { revokedSessions.add(req.sessionId); activeSessionsMap.delete(req.sessionId); }
         try {
             return res.status(200).json({
                 success: true,
                 message: "Đăng xuất thành công."
             });
         } catch (error) {
-            console.error("Error POST /api/auth/logout:", error);
+            console.error("Error POST /api/auth/logout:", error.code || error.name);
             return res.status(500).json({
                 success: false,
                 message: "Lỗi khi đăng xuất."
@@ -1546,7 +1532,7 @@ async function startServer() {
                 message: "Đã tiếp nhận lượt xem trang."
             });
         } catch (error) {
-            console.error("Error POST /api/activity/page-view:", error);
+            console.error("Error POST /api/activity/page-view:", error.code || error.name);
             return res.status(500).json({
                 success: false,
                 message: "Không thể ghi nhận lượt xem trang."
@@ -1570,7 +1556,7 @@ async function startServer() {
 
             return res.status(200).json({
                 success: true,
-                data: sanitizeUser(user),
+                data: { ...sanitizeUser(user), current_health: await loadHealthSnapshot(pool, req.user.id) },
             });
         } catch (err) {
             return res.status(500).json({ success: false, message: "Lỗi server." });
@@ -1628,17 +1614,21 @@ async function startServer() {
             if (body.occupation !== undefined) { updates.push('occupation = ?'); params.push(String(body.occupation).trim()); }
             if (body.avatar_url !== undefined) { updates.push('avatar_url = ?'); params.push(String(body.avatar_url).trim()); }
             // Biometrics & Baseline
-            if (body.height_cm !== undefined) {
+            for (const [field, min, max] of [['height_cm', 40, 260], ['base_weight_kg', 10, 400], ['target_weight_kg', 10, 400]]) {
+                if (body[field] === null) { updates.push(field + ' = ?'); params.push(null); }
+                else if (body[field] !== undefined && (body[field] === '' || typeof body[field] === 'boolean' || !Number.isFinite(Number(body[field])) || Number(body[field]) < min || Number(body[field]) > max)) return res.status(400).json({ success: false, message: 'Invalid biometric value: ' + field });
+            }
+            if (body.height_cm !== undefined && body.height_cm !== null) {
                 const h = Number(body.height_cm);
                 if (!isNaN(h) && h >= 40 && h <= 260) { updates.push('height_cm = ?'); params.push(Math.round(h * 10) / 10); }
             }
-            if (body.base_weight_kg !== undefined) {
+            if (body.base_weight_kg !== undefined && body.base_weight_kg !== null) {
                 const bw = Number(body.base_weight_kg);
-                if (!isNaN(bw) && bw >= 20 && bw <= 300) { updates.push('base_weight_kg = ?'); params.push(Math.round(bw * 10) / 10); }
+                if (!isNaN(bw) && bw >= 10 && bw <= 400) { updates.push('base_weight_kg = ?'); params.push(Math.round(bw * 10) / 10); }
             }
-            if (body.target_weight_kg !== undefined) {
+            if (body.target_weight_kg !== undefined && body.target_weight_kg !== null) {
                 const tw = Number(body.target_weight_kg);
-                if (!isNaN(tw) && tw >= 20 && tw <= 300) { updates.push('target_weight_kg = ?'); params.push(Math.round(tw * 10) / 10); }
+                if (!isNaN(tw) && tw >= 10 && tw <= 400) { updates.push('target_weight_kg = ?'); params.push(Math.round(tw * 10) / 10); }
             }
             if (body.blood_type !== undefined) { updates.push('blood_type = ?'); params.push(body.blood_type); }
             if (body.activity_level !== undefined) { updates.push('activity_level = ?'); params.push(body.activity_level); }
@@ -1717,12 +1707,12 @@ async function startServer() {
             return res.status(200).json({
                 success: true,
                 message: "Cập nhật hồ sơ sức khỏe thành công!",
-                data: sanitizeUser(updatedUser),
+                data: { ...sanitizeUser(updatedUser), current_health: await loadHealthSnapshot(pool, updatedUser.id) },
             });
         }
         catch (err) {
-            console.error("Error PUT /api/profile:", err);
-            return res.status(500).json({ success: false, message: "Lỗi khi cập nhật hồ sơ.", error: err.message });
+            console.error("Error PUT /api/profile:", err.code || err.name);
+            return res.status(500).json({ success: false, message: "Lỗi khi cập nhật hồ sơ." });
         }
     });
     // Update password
@@ -1790,541 +1780,12 @@ async function startServer() {
             });
         }
         catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi server khi đổi mật khẩu.", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi server khi đổi mật khẩu." });
         }
     });
-    // ==========================================
-    // HEALTH RECORDS ROUTES (/api/health)
-    // (Only: Weight, Blood Pressure, Heart Rate)
-    // ==========================================
-    // List health records
-    app.get("/api/health", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const { range } = req.query;
-            let query = 'SELECT * FROM health_records WHERE user_id = ?';
-            const params = [userId];
-
-            if (range) {
-                const now = Date.now();
-                let days = 30;
-                if (range === "7d") days = 7;
-                else if (range === "30d") days = 30;
-                else if (range === "3m") days = 90;
-
-                const cutoff = new Date(now - days * 86400000).toISOString().slice(0, 19).replace('T', ' ');
-                query += ' AND recorded_at >= ?';
-                params.push(cutoff);
-            }
-
-            query += ' ORDER BY recorded_at ASC';
-            const pool = getMySQLPool();
-            const [records] = await pool.query(query, params);
-
-            return res.status(200).json({
-                success: true,
-                message: "Lấy danh sách chỉ số sức khỏe thành công",
-                data: records,
-            });
-        } catch (error) {
-            console.error('Error in GET /api/health:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Latest health record for dashboard
-    app.get("/api/health/latest", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const pool = getMySQLPool();
-            const [records] = await pool.query('SELECT * FROM health_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 2', [userId]);
-
-            const latest = records[0] || null;
-            const previous = records[1] || null;
-            return res.status(200).json({
-                success: true,
-                data: {
-                    latest,
-                    previous,
-                },
-            });
-        } catch (error) {
-            console.error('Error in GET /api/health/latest:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Create health record
-    app.post("/api/health", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const { weight, systolic, diastolic, heart_rate, recorded_at, notes } = req.body;
-            if (weight === undefined || systolic === undefined || diastolic === undefined || heart_rate === undefined) {
-                return res.status(400).json({ success: false, message: "Vui lòng nhập đầy đủ Cân nặng, Huyết áp (Tâm thu/Tâm trương) và Nhịp tim." });
-            }
-            const numWeight = Number(weight);
-            const numSys = Number(systolic);
-            const numDia = Number(diastolic);
-            const numHr = Number(heart_rate);
-            if (isNaN(numWeight) || numWeight <= 10 || numWeight > 400) return res.status(400).json({ success: false, message: "Cân nặng không hợp lệ (10 - 400 kg)." });
-            if (isNaN(numSys) || isNaN(numDia) || numSys < 50 || numSys > 260 || numDia < 30 || numDia > 180) return res.status(400).json({ success: false, message: "Chỉ số huyết áp không hợp lệ." });
-            if (isNaN(numHr) || numHr < 30 || numHr > 240) return res.status(400).json({ success: false, message: "Nhịp tim không hợp lệ (30 - 240 bpm)." });
-
-            const recordTime = recorded_at ? new Date(recorded_at).toISOString().slice(0, 19).replace('T', ' ') : new Date().toISOString().slice(0, 19).replace('T', ' ');
-            const pool = getMySQLPool();
-            const [result] = await pool.execute(
-                'INSERT INTO health_records (user_id, weight, systolic, diastolic, heart_rate, recorded_at, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [userId, parseFloat(numWeight.toFixed(1)), Math.round(numSys), Math.round(numDia), Math.round(numHr), recordTime, notes || ""]
-            );
-            const newRecordId = result.insertId;
-            const [newRecords] = await pool.query('SELECT * FROM health_records WHERE id = ?', [newRecordId]);
-            const newRecord = newRecords[0];
-
-            // Auto-update weight goals if user has weight metric
-            const [userGoals] = await pool.query(
-                'SELECT * FROM goals WHERE user_id = ? AND metric_type = ? AND status = ?',
-                [userId, "weight", "in_progress"]
-            );
-            for (const g of userGoals) {
-                const currentVal = newRecord.weight;
-                let status = 'in_progress';
-                if ((g.start_value >= g.target_value && currentVal <= g.target_value) ||
-                    (g.start_value <= g.target_value && currentVal >= g.target_value)) {
-                    status = 'completed';
-                }
-                await pool.execute('UPDATE goals SET current_value = ?, status = ?, updated_at = NOW() WHERE id = ?', [currentVal, status, g.id]);
-            }
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: "HEALTH_RECORD_CREATED",
-                module: "Health Metrics",
-                page: "/health",
-                resourceType: "health_record",
-                resourceId: newRecord.id,
-                description: `${req.user.full_name} đã thêm bản ghi sức khỏe mới (HA: ${newRecord.systolic}/${newRecord.diastolic} mmHg, Tim: ${newRecord.heart_rate} bpm, Cân nặng: ${newRecord.weight} kg)`,
-                status: "SUCCESS",
-                req
-            });
-
-            return res.status(201).json({ success: true, message: "Ghi nhận chỉ số sức khỏe thành công!", data: newRecord });
-        } catch (error) {
-            console.error('Error in POST /api/health:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Update health record
-    app.put("/api/health/:id", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const recordId = parseInt(req.params.id, 10);
-            const { weight, systolic, diastolic, heart_rate, recorded_at, notes } = req.body;
-
-            const pool = getMySQLPool();
-            const [records] = await pool.query('SELECT * FROM health_records WHERE id = ? AND user_id = ?', [recordId, userId]);
-            if (records.length === 0) {
-                return res.status(404).json({ success: false, message: "Không tìm thấy bản ghi sức khỏe hoặc bạn không có quyền sửa bản ghi này." });
-            }
-            const record = records[0];
-
-            let query = 'UPDATE health_records SET ';
-            const params = [];
-            const updates = [];
-
-            if (weight !== undefined) { updates.push('weight = ?'); params.push(parseFloat(Number(weight).toFixed(1))); }
-            if (systolic !== undefined) { updates.push('systolic = ?'); params.push(Math.round(Number(systolic))); }
-            if (diastolic !== undefined) { updates.push('diastolic = ?'); params.push(Math.round(Number(diastolic))); }
-            if (heart_rate !== undefined) { updates.push('heart_rate = ?'); params.push(Math.round(Number(heart_rate))); }
-            if (recorded_at !== undefined) { updates.push('recorded_at = ?'); params.push(new Date(recorded_at).toISOString().slice(0, 19).replace('T', ' ')); }
-            if (notes !== undefined) { updates.push('notes = ?'); params.push(notes); }
-
-            if (updates.length > 0) {
-                query += updates.join(', ') + ' WHERE id = ?';
-                params.push(recordId);
-                await pool.execute(query, params);
-            }
-
-            const [updatedRecords] = await pool.query('SELECT * FROM health_records WHERE id = ?', [recordId]);
-            const updatedRecord = updatedRecords[0];
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: "HEALTH_RECORD_UPDATED",
-                module: "Health Metrics",
-                page: "/health",
-                resourceType: "health_record",
-                resourceId: record.id,
-                description: `${req.user.full_name} đã cập nhật bản ghi sức khỏe #${record.id}`,
-                status: "SUCCESS",
-                req
-            });
-            return res.status(200).json({ success: true, message: "Cập nhật chỉ số sức khỏe thành công!", data: updatedRecord });
-        } catch (error) {
-            console.error('Error in PUT /api/health/:id:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Delete health record
-    app.delete("/api/health/:id", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const recordId = parseInt(req.params.id, 10);
-
-            const pool = getMySQLPool();
-            const [records] = await pool.query('SELECT * FROM health_records WHERE id = ? AND user_id = ?', [recordId, userId]);
-            if (records.length === 0) {
-                return res.status(404).json({ success: false, message: "Không tìm thấy bản ghi sức khỏe cần xóa." });
-            }
-
-            await pool.execute('DELETE FROM health_records WHERE id = ?', [recordId]);
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: "HEALTH_RECORD_DELETED",
-                module: "Health Metrics",
-                page: "/health",
-                resourceType: "health_record",
-                resourceId: recordId,
-                description: `${req.user.full_name} đã xóa bản ghi sức khỏe #${recordId}`,
-                status: "SUCCESS",
-                req
-            });
-            return res.status(200).json({ success: true, message: "Đã xóa bản ghi sức khỏe thành công." });
-        } catch (error) {
-            console.error('Error in DELETE /api/health/:id:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // ==========================================
-    // GOALS ROUTES (/api/goals)
-    // ==========================================
-    // List goals
-    app.get("/api/goals", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const pool = getMySQLPool();
-            const [goals] = await pool.query('SELECT * FROM goals WHERE user_id = ?', [userId]);
-
-            const goalsWithProgress = goals.map((g) => ({
-                ...g,
-                progress_percentage: calculateProgress(g),
-            }));
-
-            return res.status(200).json({ success: true, data: goalsWithProgress });
-        } catch (error) {
-            console.error('Error in GET /api/goals:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Create goal
-    app.post("/api/goals", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const { title, metric_type, start_value, target_value, current_value, unit } = req.body;
-            if (!title || start_value === undefined || target_value === undefined) {
-                return res.status(400).json({ success: false, message: "Vui lòng nhập tên mục tiêu, giá trị ban đầu và giá trị mục tiêu." });
-            }
-            if (isNaN(Number(start_value)) || isNaN(Number(target_value)) || (current_value !== undefined && isNaN(Number(current_value)))) {
-                return res.status(400).json({ success: false, message: "Giá trị số không hợp lệ." });
-            }
-            const cur = current_value !== undefined ? Number(current_value) : Number(start_value);
-
-            const pool = getMySQLPool();
-            const [result] = await pool.execute(
-                'INSERT INTO goals (user_id, title, metric_type, start_value, target_value, current_value, unit, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [userId, title, metric_type || "weight", Number(start_value), Number(target_value), cur, unit || "kg", "in_progress"]
-            );
-
-            const [newGoals] = await pool.query('SELECT * FROM goals WHERE id = ?', [result.insertId]);
-            const newGoal = newGoals[0];
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: "GOAL_CREATED",
-                module: "Goals",
-                page: "/goals",
-                resourceType: "goal",
-                resourceId: newGoal.id,
-                description: `${req.user.full_name} đã tạo mục tiêu: "${newGoal.title}" (Mục tiêu: ${newGoal.target_value} ${newGoal.unit})`,
-                status: "SUCCESS",
-                req
-            });
-            return res.status(201).json({
-                success: true,
-                message: "Tạo mục tiêu sức khỏe thành công!",
-                data: {
-                    ...newGoal,
-                    progress_percentage: calculateProgress(newGoal),
-                },
-            });
-        } catch (error) {
-            console.error('Error in POST /api/goals:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Update goal progress / status
-    app.put("/api/goals/:id", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const goalId = parseInt(req.params.id, 10);
-            const { title, current_value, target_value, status } = req.body;
-            if (current_value !== undefined && isNaN(Number(current_value))) return res.status(400).json({ success: false, message: "Giá trị hiện tại không hợp lệ." });
-            if (target_value !== undefined && isNaN(Number(target_value))) return res.status(400).json({ success: false, message: "Giá trị mục tiêu không hợp lệ." });
-
-            const pool = getMySQLPool();
-            const [goals] = await pool.query('SELECT * FROM goals WHERE id = ? AND user_id = ?', [goalId, userId]);
-            if (goals.length === 0) {
-                return res.status(404).json({ success: false, message: "Không tìm thấy mục tiêu." });
-            }
-            const goal = goals[0];
-
-            let query = 'UPDATE goals SET ';
-            const params = [];
-            const updates = [];
-
-            if (title !== undefined) { updates.push('title = ?'); params.push(title); }
-            if (current_value !== undefined) { updates.push('current_value = ?'); params.push(Number(current_value)); }
-            if (target_value !== undefined) { updates.push('target_value = ?'); params.push(Number(target_value)); }
-            if (status !== undefined) { updates.push('status = ?'); params.push(status); }
-
-            if (updates.length > 0) {
-                updates.push('updated_at = NOW()');
-                query += updates.join(', ') + ' WHERE id = ?';
-                params.push(goalId);
-                await pool.execute(query, params);
-            }
-
-            const [updatedGoals] = await pool.query('SELECT * FROM goals WHERE id = ?', [goalId]);
-            const updatedGoal = updatedGoals[0];
-
-            const actionType = current_value !== undefined ? "GOAL_PROGRESS_UPDATED" : "GOAL_UPDATED";
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: actionType,
-                module: "Goals",
-                page: "/goals",
-                resourceType: "goal",
-                resourceId: updatedGoal.id,
-                description: `${req.user.full_name} đã cập nhật mục tiêu "${updatedGoal.title}"`,
-                status: "SUCCESS",
-                req
-            });
-            return res.status(200).json({
-                success: true,
-                message: "Cập nhật tiến độ mục tiêu thành công!",
-                data: {
-                    ...updatedGoal,
-                    progress_percentage: calculateProgress(updatedGoal),
-                },
-            });
-        } catch (error) {
-            console.error('Error in PUT /api/goals/:id:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Delete goal
-    app.delete("/api/goals/:id", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const goalId = parseInt(req.params.id, 10);
-
-            const pool = getMySQLPool();
-            const [goals] = await pool.query('SELECT * FROM goals WHERE id = ? AND user_id = ?', [goalId, userId]);
-            if (goals.length === 0) {
-                return res.status(404).json({ success: false, message: "Không tìm thấy mục tiêu cần xóa." });
-            }
-
-            await pool.execute('DELETE FROM goals WHERE id = ?', [goalId]);
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: "GOAL_DELETED",
-                module: "Goals",
-                page: "/goals",
-                resourceType: "goal",
-                resourceId: goalId,
-                description: `${req.user.full_name} đã xóa mục tiêu: "${goals[0].title}"`,
-                status: "SUCCESS",
-                req
-            });
-            return res.status(200).json({ success: true, message: "Đã xóa mục tiêu thành công." });
-        } catch (error) {
-            console.error('Error in DELETE /api/goals/:id:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // ==========================================
-    // REMINDERS ROUTES (/api/reminders)
-    // (Only: Water and Exercise)
-    // ==========================================
-    // List reminders
-    app.get("/api/reminders", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const pool = getMySQLPool();
-            const [reminders] = await pool.query('SELECT * FROM reminders WHERE user_id = ?', [userId]);
-
-            return res.status(200).json({ success: true, data: reminders });
-        } catch (error) {
-            console.error('Error in GET /api/reminders:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Create reminder
-    app.post("/api/reminders", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const { type, title, time_of_day } = req.body;
-            if (!type || !title || !time_of_day) {
-                return res.status(400).json({ success: false, message: "Vui lòng nhập loại nhắc nhở (uống nước/tập thể dục), tiêu đề và thời gian." });
-            }
-            if (type !== "water" && type !== "exercise") {
-                return res.status(400).json({ success: false, message: "Loại nhắc nhở chỉ gồm: uống nước (water) hoặc tập thể dục (exercise)." });
-            }
-
-            const pool = getMySQLPool();
-            const [result] = await pool.execute(
-                'INSERT INTO reminders (user_id, type, title, time_of_day, is_active) VALUES (?, ?, ?, ?, ?)',
-                [userId, type, title, time_of_day, 1]
-            );
-
-            const [newReminders] = await pool.query('SELECT * FROM reminders WHERE id = ?', [result.insertId]);
-            const newReminder = newReminders[0];
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: "REMINDER_CREATED",
-                module: "Reminders",
-                page: "/reminders",
-                resourceType: "reminder",
-                resourceId: newReminder.id,
-                description: `${req.user.full_name} đã tạo nhắc nhở ${newReminder.type === 'water' ? 'uống nước' : 'vận động'}: "${newReminder.title}" (${newReminder.time_of_day})`,
-                status: "SUCCESS",
-                req
-            });
-            return res.status(201).json({
-                success: true,
-                message: "Tạo nhắc nhở thành công!",
-                data: newReminder,
-            });
-        } catch (error) {
-            console.error('Error in POST /api/reminders:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Update / Toggle reminder
-    app.put("/api/reminders/:id", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const reminderId = parseInt(req.params.id, 10);
-            const { type, title, time_of_day, is_active } = req.body;
-
-            const pool = getMySQLPool();
-            const [reminders] = await pool.query('SELECT * FROM reminders WHERE id = ? AND user_id = ?', [reminderId, userId]);
-            if (reminders.length === 0) {
-                return res.status(404).json({ success: false, message: "Không tìm thấy nhắc nhở." });
-            }
-            const reminder = reminders[0];
-
-            let query = 'UPDATE reminders SET ';
-            const params = [];
-            const updates = [];
-
-            if (type !== undefined && (type === "water" || type === "exercise")) { updates.push('type = ?'); params.push(type); }
-            if (title !== undefined) { updates.push('title = ?'); params.push(title); }
-            if (time_of_day !== undefined) { updates.push('time_of_day = ?'); params.push(time_of_day); }
-
-            const isToggleOnly = is_active !== undefined && updates.length === 0 && reminder.is_active !== (is_active ? 1 : 0);
-            if (is_active !== undefined) { updates.push('is_active = ?'); params.push(is_active ? 1 : 0); }
-
-            if (updates.length > 0) {
-                query += updates.join(', ') + ' WHERE id = ?';
-                params.push(reminderId);
-                await pool.execute(query, params);
-            }
-
-            const [updatedReminders] = await pool.query('SELECT * FROM reminders WHERE id = ?', [reminderId]);
-            const updatedReminder = updatedReminders[0];
-            // Convert bit to boolean for frontend compatibility
-            updatedReminder.is_active = updatedReminder.is_active === 1;
-
-            const actionType = isToggleOnly ? "REMINDER_TOGGLED" : "REMINDER_UPDATED";
-            const desc = isToggleOnly
-                ? `${req.user.full_name} đã ${updatedReminder.is_active ? 'bật' : 'tắt'} nhắc nhở: "${updatedReminder.title}"`
-                : `${req.user.full_name} đã cập nhật nhắc nhở: "${updatedReminder.title}"`;
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: actionType,
-                module: "Reminders",
-                page: "/reminders",
-                resourceType: "reminder",
-                resourceId: updatedReminder.id,
-                description: desc,
-                status: "SUCCESS",
-                req
-            });
-
-            return res.status(200).json({
-                success: true,
-                message: "Cập nhật nhắc nhở thành công!",
-                data: updatedReminder,
-            });
-        } catch (error) {
-            console.error('Error in PUT /api/reminders/:id:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Delete reminder
-    app.delete("/api/reminders/:id", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const reminderId = parseInt(req.params.id, 10);
-
-            const pool = getMySQLPool();
-            const [reminders] = await pool.query('SELECT * FROM reminders WHERE id = ? AND user_id = ?', [reminderId, userId]);
-            if (reminders.length === 0) {
-                return res.status(404).json({ success: false, message: "Không tìm thấy nhắc nhở cần xóa." });
-            }
-
-            await pool.execute('DELETE FROM reminders WHERE id = ?', [reminderId]);
-
-            createAuditLog({
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userRole: req.user.role,
-                action: "REMINDER_DELETED",
-                module: "Reminders",
-                page: "/reminders",
-                resourceType: "reminder",
-                resourceId: reminderId,
-                description: `${req.user.full_name} đã xóa nhắc nhở: "${reminders[0].title}"`,
-                status: "SUCCESS",
-                req
-            });
-            return res.status(200).json({ success: true, message: "Đã xóa nhắc nhở thành công." });
-        } catch (error) {
-            console.error('Error in DELETE /api/reminders/:id:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // ==========================================
-    // ADMIN ROUTES (/api/admin)
-    // Protected by authenticateJWT + requireAdmin
+    registerHealthRoutes(app, { authenticateJWT, audit: createAuditLog });
+    registerReminderRoutes(app, { authenticateJWT, audit: createAuditLog });
+    registerAdminRoutes(app, { authenticateJWT, requireAdmin, audit: createAuditLog, sessions: activeSessionsMap, revokedSessions });
     // ==========================================
 
     // Admin - Cấp phát thiết bị cho người dùng
@@ -2384,11 +1845,11 @@ async function startServer() {
 
             const deviceId = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-            const deviceModel = String(model || "Standard BLE Peripheral").trim();
+            const deviceModel = String(model || "").trim();
             const mac = String(macAddress || "").trim();
-            const firmware = String(firmwareVersion || "v1.0.0").trim();
+            const firmware = String(firmwareVersion || "").trim();
 
-            if (deviceModel.length > 100 || mac.length > 50 || firmware.length > 50) {
+            if (deviceModel.length > 100 || mac.length > 50 || firmware.length > 50 || (mac && !/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(mac))) {
                 return res.status(400).json({
                     success: false,
                     message: "Thông tin thiết bị vượt quá độ dài cho phép."
@@ -2399,17 +1860,17 @@ async function startServer() {
                 `INSERT INTO connected_devices
              (id, user_id, name, type, model, battery_level,
               status, last_sync_time, mac_address, firmware_version)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
                 [
                     deviceId,
                     targetUserId,
                     deviceName,
                     normalizedType,
                     deviceModel,
-                    100,
-                    "connected",
-                    mac,
-                    firmware
+                    null,
+                    "idle",
+                    mac || null,
+                    firmware || null
                 ]
             );
 
@@ -2422,15 +1883,15 @@ async function startServer() {
                     name: deviceName,
                     type: normalizedType,
                     model: deviceModel,
-                    batteryLevel: 100,
-                    status: "connected",
+                    batteryLevel: null,
+                    status: "idle",
                     macAddress: mac,
                     firmwareVersion: firmware
                 }
             });
 
         } catch (error) {
-            console.error("Error POST /api/admin/devices:", error);
+            console.error("Error POST /api/admin/devices:", error.code || error.name);
 
             return res.status(500).json({
                 success: false,
@@ -2460,7 +1921,7 @@ async function startServer() {
             });
 
         } catch (error) {
-            console.error("Error GET /api/admin/devices:", error);
+            console.error("Error GET /api/admin/devices:", error.code || error.name);
 
             return res.status(500).json({
                 success: false,
@@ -2485,12 +1946,21 @@ async function startServer() {
             // Calculate AHA risk distribution via SQL
             const [riskRows] = await pool.query(`
                 SELECT 
-                    SUM(CASE WHEN systolic >= 180 OR diastolic >= 120 THEN 1 ELSE 0 END) as crisis,
-                    SUM(CASE WHEN (systolic >= 140 AND systolic < 180) OR (diastolic >= 90 AND diastolic < 120) THEN 1 ELSE 0 END) as stage2,
-                    SUM(CASE WHEN (systolic >= 130 AND systolic < 140) OR (diastolic >= 80 AND diastolic < 90) THEN 1 ELSE 0 END) as stage1,
-                    SUM(CASE WHEN (systolic >= 120 AND systolic < 130) AND (diastolic < 80) THEN 1 ELSE 0 END) as elevated,
-                    SUM(CASE WHEN systolic < 120 AND diastolic < 80 THEN 1 ELSE 0 END) as normal
-                FROM health_records
+                    SUM(category = 'crisis') as crisis,
+                    SUM(category = 'stage2') as stage2,
+                    SUM(category = 'stage1') as stage1,
+                    SUM(category = 'elevated') as elevated,
+                    SUM(category = 'normal') as normal
+                FROM (
+                    SELECT CASE
+                        WHEN systolic NOT BETWEEN 50 AND 260 OR diastolic NOT BETWEEN 30 AND 180 OR systolic IS NULL OR diastolic IS NULL THEN 'unknown'
+                        WHEN systolic > 180 OR diastolic > 120 THEN 'crisis'
+                        WHEN systolic >= 140 OR diastolic >= 90 THEN 'stage2'
+                        WHEN systolic >= 130 OR diastolic >= 80 THEN 'stage1'
+                        WHEN systolic >= 120 THEN 'elevated'
+                        ELSE 'normal' END AS category
+                    FROM health_records WHERE recorded_at <= UTC_TIMESTAMP()
+                ) evaluated
             `);
 
             const riskDistribution = {
@@ -2517,8 +1987,8 @@ async function startServer() {
                 },
             });
         } catch (err) {
-            console.error(err);
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            console.error('Admin dashboard error:', err.code || err.name);
+            return res.status(500).json({ success: false, message: "Lỗi máy chủ" });
         }
     });
 
@@ -2530,7 +2000,8 @@ async function startServer() {
             const pool = getMySQLPool();
             // Use memory processing for complex time series buckets, but load data appropriately
             const [dbUsers] = await pool.query('SELECT id, is_active, created_at FROM users');
-            const [dbHealthRecords] = await pool.query('SELECT id, user_id, weight, systolic, diastolic, heart_rate, recorded_at FROM health_records');
+            const [rawHealthRecords] = await pool.query('SELECT id, user_id, weight, systolic, diastolic, heart_rate, recorded_at FROM health_records');
+            const dbHealthRecords = rawHealthRecords.map(record => ({ ...record, ...Object.fromEntries(['weight', 'systolic', 'diastolic', 'heart_rate'].map(field => [field, validMetric(field, record[field]) ? Number(record[field]) : null])) }));
             const { range = "30d" } = req.query;
             const now = new Date();
             let startTime = new Date();
@@ -2567,7 +2038,7 @@ async function startServer() {
             const activeUsers = dbUsers.filter((u) => u.is_active).length;
             const newUsersInRange = dbUsers.filter((u) => new Date(u.created_at) >= startTime).length;
             const totalHealthRecords = dbHealthRecords.length;
-            const recordsInRangeList = dbHealthRecords.filter((r) => new Date(r.recorded_at) >= startTime);
+            const recordsInRangeList = dbHealthRecords.filter((r) => new Date(r.recorded_at) >= startTime && new Date(r.recorded_at) <= now);
             const recordsInRange = recordsInRangeList.length;
             // Summary averages
             const weights = recordsInRangeList.filter((r) => typeof r.weight === "number" && r.weight > 0).map((r) => r.weight);
@@ -2675,9 +2146,9 @@ async function startServer() {
             let stage1Count = 0;
             let stage2Count = 0;
             let crisisCount = 0;
-            const evalRecords = recordsInRangeList.length > 0 ? recordsInRangeList : dbHealthRecords;
+            const evalRecords = recordsInRangeList.filter(r => riskCategory(r) !== 'unknown');
             evalRecords.forEach((r) => {
-                if (r.systolic >= 180 || r.diastolic >= 120)
+                if (r.systolic > 180 || r.diastolic > 120)
                     crisisCount++;
                 else if (r.systolic >= 140 || r.diastolic >= 90)
                     stage2Count++;
@@ -2698,7 +2169,7 @@ async function startServer() {
                     color: "#10b981", // emerald-500
                 },
                 {
-                    name: "Tiền tăng HA (120-129/<80)",
+                    name: "Huyết áp tăng (120-129/<80)",
                     count: elevatedCount,
                     percentage: Math.round((elevatedCount / totalEval) * 1000) / 10,
                     description: "Huyết áp tâm thu tăng nhẹ",
@@ -2719,10 +2190,10 @@ async function startServer() {
                     color: "#ef4444", // rose-500
                 },
                 {
-                    name: "Cơn Tăng HA Khẩn Cấp (≥180/≥120)",
+                    name: "Vượt ngưỡng nghiêm trọng (>180/>120)",
                     count: crisisCount,
                     percentage: Math.round((crisisCount / totalEval) * 1000) / 10,
-                    description: "Mức báo động đỏ cần cấp cứu y tế",
+                    description: "Cần liên hệ nhân viên y tế ngay; có triệu chứng nguy hiểm thì gọi cấp cứu",
                     color: "#b91c1c", // red-700
                 },
             ];
@@ -2747,10 +2218,10 @@ async function startServer() {
             });
         }
         catch (err) {
-            console.error("Error in /api/admin/statistics:", err);
+            console.error("Error in /api/admin/statistics:", err.code || err.name);
             return res.status(500).json({
                 success: false,
-                message: "Lỗi khi tổng hợp dữ liệu thống kê hệ thống: " + (err.message || "Unknown error"),
+                message: "Lỗi khi tổng hợp dữ liệu thống kê hệ thống. Vui lòng thử lại.",
             });
         }
     });
@@ -2781,7 +2252,7 @@ async function startServer() {
                 data: users,
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi máy chủ" });
         }
     });
     // Admin Toggle User Status (Lock/Unlock)
@@ -2825,7 +2296,7 @@ async function startServer() {
                 data: { id: targetId, is_active: isActiveBool },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi máy chủ" });
         }
     });
     // Admin Change User Role
@@ -2872,7 +2343,7 @@ async function startServer() {
                 data: { id: targetId, role },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi máy chủ" });
         }
     });
 
@@ -2889,10 +2360,18 @@ async function startServer() {
                 return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
             }
 
-            const [records] = await pool.query('SELECT * FROM health_records WHERE user_id = ? ORDER BY recorded_at DESC LIMIT 50', [targetId]);
+            const [records] = await pool.query('SELECT * FROM health_records WHERE user_id = ? ORDER BY recorded_at DESC, id DESC LIMIT 50', [targetId]);
             const [goals] = await pool.query('SELECT * FROM goals WHERE user_id = ? ORDER BY created_at DESC', [targetId]);
             const [devices] = await pool.query('SELECT * FROM connected_devices WHERE user_id = ?', [targetId]);
+            const currentHealth = await loadHealthSnapshot(pool, targetId);
             const [aiHistory] = await pool.query('SELECT * FROM ai_diagnoses WHERE user_id = ? ORDER BY created_at DESC LIMIT 20', [targetId]);
+            const formattedHistory = aiHistory.map(formatDiagnosis);
+            const average = field => {
+                const values = records.filter(r => new Date(r.recorded_at).getTime() <= Date.now() && validMetric(field, r[field])).map(r => Number(r[field]));
+                return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
+            };
+            const lastWeight = currentHealth.current.weight?.value ?? null;
+            const bmi = lastWeight != null && Number(user.height_cm) > 0 ? Math.round(lastWeight / (Number(user.height_cm) / 100) ** 2 * 10) / 10 : null;
 
             createAuditLog({
                 userId: req.user.id,
@@ -2911,15 +2390,17 @@ async function startServer() {
             return res.status(200).json({
                 success: true,
                 data: {
-                    user: sanitizeUser(user),
+                    user: { ...sanitizeUser(user), current_health: currentHealth },
                     health_records: records,
-                    goals: goals.map(g => ({ ...g, progress_percentage: calculateProgress(g) })),
+                    goals: goals.map(g => goalWithCurrent(g, currentHealth)),
                     devices,
-                    ai_history: aiHistory,
+                    ai_history: formattedHistory,
+                    aiHistory: formattedHistory,
+                    stats: { avgSystolic: average('systolic'), avgDiastolic: average('diastolic'), avgHeartRate: average('heart_rate'), lastWeight, bmi, bmiCategory: 'Chỉ số tham khảo', sampleSize: records.length },
                 },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi máy chủ" });
         }
     });
 
@@ -2931,6 +2412,8 @@ async function startServer() {
             if (!full_name || !email || !role || !password) {
                 return res.status(400).json({ success: false, message: "Vui lòng điền đầy đủ thông tin bắt buộc." });
             }
+            if (!['user', 'admin'].includes(role) || typeof full_name !== 'string' || !full_name.trim() || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || typeof password !== 'string' || password.length < 8) return res.status(400).json({ success: false, message: 'Thông tin tài khoản hoặc mật khẩu không hợp lệ.' });
+            const fields = profileFields(req.body);
 
             const pool = getMySQLPool();
             const trimmedEmail = email.trim().toLowerCase();
@@ -2942,10 +2425,11 @@ async function startServer() {
 
             const hashed = await bcrypt.hash(password, 10);
 
-            const [result] = await pool.execute(
-                'INSERT INTO users (full_name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?)',
-                [full_name.trim(), trimmedEmail, hashed, role, 1]
-            );
+            const result = await inTransaction(pool, async connection => {
+                const [insert] = await insertUserWithoutGuessedBiometrics(connection, ['full_name', 'email', 'password', 'role', 'is_active'], [full_name.trim(), trimmedEmail, hashed, role, 1]);
+                if (fields.updates.length) await connection.execute('UPDATE users SET ' + fields.updates.join(', ') + ' WHERE id = ?', [...fields.params, insert.insertId]);
+                return insert;
+            });
 
             const [newUsers] = await pool.query('SELECT * FROM users WHERE id = ?', [result.insertId]);
             const newUser = newUsers[0];
@@ -2971,7 +2455,7 @@ async function startServer() {
                 data: sanitizeUser(newUser),
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : "Lỗi máy chủ" });
         }
     });
 
@@ -2981,6 +2465,11 @@ async function startServer() {
         try {
             const targetId = parseInt(req.params.id, 10);
             const { full_name, email, role, phone_number, occupation } = req.body;
+            if (role !== undefined && !['user', 'admin'].includes(role)) return res.status(400).json({ success: false, message: 'Quyền không hợp lệ.' });
+            if (role !== undefined && targetId === req.user.id && role !== 'admin') return res.status(400).json({ success: false, message: 'Không thể tự hạ quyền quản trị.' });
+            if (full_name !== undefined && (typeof full_name !== 'string' || !full_name.trim())) return res.status(400).json({ success: false, message: 'Họ tên không hợp lệ.' });
+            if (email !== undefined && (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return res.status(400).json({ success: false, message: 'Email không hợp lệ.' });
+            const fields = profileFields(req.body);
 
             const pool = getMySQLPool();
             const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [targetId]);
@@ -2998,14 +2487,12 @@ async function startServer() {
                 }
             }
 
-            let updates = [];
-            let params = [];
+            let updates = [...fields.updates];
+            let params = [...fields.params];
 
             if (full_name !== undefined) { updates.push('full_name = ?'); params.push(full_name.trim()); }
             if (email !== undefined) { updates.push('email = ?'); params.push(email.trim().toLowerCase()); }
             if (role !== undefined) { updates.push('role = ?'); params.push(role); }
-            if (phone_number !== undefined) { updates.push('phone_number = ?'); params.push(phone_number.trim()); }
-            if (occupation !== undefined) { updates.push('occupation = ?'); params.push(occupation.trim()); }
 
             let updatedUser = user;
             if (updates.length > 0) {
@@ -3033,10 +2520,10 @@ async function startServer() {
             return res.status(200).json({
                 success: true,
                 message: "Cập nhật thông tin người dùng thành công.",
-                data: sanitizeUser(updatedUser),
+                data: { ...sanitizeUser(updatedUser), current_health: await loadHealthSnapshot(pool, updatedUser.id) },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : "Lỗi máy chủ" });
         }
     });
 
@@ -3054,7 +2541,8 @@ async function startServer() {
                 return res.status(404).json({ success: false, message: "Không tìm thấy người dùng." });
             }
 
-            const defaultPass = "123456";
+            const defaultPass = req.body.newPassword;
+            if (typeof defaultPass !== "string" || defaultPass.length < 8) return res.status(400).json({ success: false, message: "Password must have at least 8 characters." });
             const hashed = await bcrypt.hash(defaultPass, 10);
 
             await pool.execute('UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?', [hashed, targetId]);
@@ -3075,10 +2563,11 @@ async function startServer() {
 
             return res.status(200).json({
                 success: true,
-                message: "Đặt lại mật khẩu thành công. Mật khẩu mới là: 123456",
+                message: "Đã đặt lại mật khẩu.",
+                data: { temporaryPassword: defaultPass },
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi máy chủ" });
         }
     });
 
@@ -3120,410 +2609,14 @@ async function startServer() {
                 message: "Đã xóa người dùng thành công.",
             });
         } catch (err) {
-            return res.status(500).json({ success: false, message: "Lỗi máy chủ", error: err.message });
+            return res.status(500).json({ success: false, message: "Lỗi máy chủ" });
         }
     });
 
-    let systemSettingsData = {
-        emergency_systolic_threshold: 180,
-        emergency_diastolic_threshold: 120,
-        warning_systolic_threshold: 130,
-        warning_diastolic_threshold: 85,
-        max_heart_rate_threshold: 100,
-        min_heart_rate_threshold: 55,
-        ai_model_name: "gemini-2.5-flash",
-        ai_sensitivity_level: "balanced",
-        require_physician_approval_for_high_risk: true,
-        session_timeout_hours: 2,
-        system_admin_email: "admin@vitaltrack.vn",
-        allow_patient_registration: true,
-        enable_email_alerts: true,
-        maintenance_mode: false
-    };
+    registerSettingsRoutes(app, { authenticateJWT, requireAdmin, audit: createAuditLog });
 
-    app.get("/api/admin/settings", authenticateJWT, requireAdmin, (req, res) => {
-        res.json({ success: true, data: systemSettingsData });
-    });
-
-    app.put("/api/admin/settings", authenticateJWT, requireAdmin, (req, res) => {
-        systemSettingsData = { ...systemSettingsData, ...req.body };
-        res.json({ success: true, data: systemSettingsData, message: "Settings updated successfully" });
-    });
-
-    app.get("/api/admin/export", authenticateJWT, requireAdmin, (req, res) => {
-        const backup = {
-            users: dbUsers,
-            healthRecords: dbHealthRecords,
-            goals: dbGoals,
-            reminders: dbReminders,
-            auditLogs: dbAuditLogs,
-            settings: systemSettingsData,
-            timestamp: new Date().toISOString()
-        };
-        res.json({ success: true, data: backup });
-    });
-
-
-    // =========================================================================
-    // 🤖 1. AI HEALTH DIAGNOSTICS & GEMINI ASSISTANT API ENDPOINTS
-    // =========================================================================
-    //
-    // Hệ thống tích hợp trực tiếp Google Gemini API (gemini-1.5-flash) qua SDK @google/genai.
-    // Khóa API GEMINI_API_KEY được bảo mật hoàn toàn ở tầng Backend Server.
-    // Kèm cơ chế dự phòng chuẩn y khoa (Clinical Fallback Engine) khi không có khóa API.
-    //
-    // =========================================================================
-    // Endpoint: Chuẩn đoán & Phân tích sức khỏe AI
-    app.post("/api/ai/diagnose", authenticateJWT, async (req, res) => {
-        try {
-            const { symptoms = [], notes = "", recentVitals, lifestyle } = req.body;
-            const userId = req.user.id;
-            const user = dbUsers.find((u) => u.id === userId);
-            // Thu thập thêm bản ghi sinh trắc học mới nhất của user từ DB
-            const userRecords = dbHealthRecords
-                .filter((r) => r.user_id === userId)
-                .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-            const latestRecord = userRecords[0];
-            const sys = recentVitals?.systolic || (latestRecord ? latestRecord.systolic : 120);
-            const dia = recentVitals?.diastolic || (latestRecord ? latestRecord.diastolic : 80);
-            const hr = recentVitals?.heart_rate || (latestRecord ? latestRecord.heart_rate : 72);
-            const wt = recentVitals?.weight || (latestRecord ? latestRecord.weight : 68);
-            // Phân tích trạng thái lâm sàng cơ bản
-            let bpStatus = "Huyết áp tối ưu (Bình thường)";
-            let bpRiskScore = 10;
-            if (sys >= 140 || dia >= 90) {
-                bpStatus = "Tăng huyết áp Độ 1 - Cần theo dõi sát";
-                bpRiskScore = 65;
-            }
-            else if (sys >= 130 || dia >= 85) {
-                bpStatus = "Huyết áp tiền tăng (Prehypertension)";
-                bpRiskScore = 40;
-            }
-            else if (sys < 90 || dia < 60) {
-                bpStatus = "Huyết áp thấp (Hypotension)";
-                bpRiskScore = 35;
-            }
-            let hrStatus = "Nhịp tim bình thường trong lúc nghỉ";
-            if (hr > 100) {
-                hrStatus = "Nhịp tim nhanh lúc nghỉ (Tachycardia)";
-            }
-            else if (hr < 55) {
-                hrStatus = "Nhịp tim chậm (Bradycardia)";
-            }
-            let diagnosisResult = null;
-            const ai = getGeminiAI();
-            // Nếu có cấu hình Google Gemini API Key, thực hiện phân tích chuyên sâu bằng mô hình AI thực tế
-            if (ai) {
-                try {
-                    const prompt = `Phân tích hồ sơ lâm sàng của bệnh nhân:
-- Họ tên/Thông tin: ${user?.full_name || "Người dùng"}, Giới tính: ${user?.gender || "Không rõ"}, Tuổi: ${user?.date_of_birth || "Không rõ"}
-- Bệnh nền mãn tính: ${user?.chronic_conditions?.join(", ") || "Không có"}
-- Triệu chứng đang gặp phải: ${symptoms.length > 0 ? symptoms.join(", ") : "Không có triệu chứng rõ rệt"}
-- Ghi chú từ bệnh nhân: ${notes || "Không có"}
-- Huyết áp động mạch hiện tại: ${sys}/${dia} mmHg
-- Nhịp tim khi nghỉ: ${hr} nhịp/phút (bpm)
-- Cân nặng hiện tại: ${wt} kg
-- Lối sống: Giấc ngủ ${lifestyle?.sleepHours || 7}h/ngày, Căng thẳng ${lifestyle?.stressLevel || "moderate"}, Vận động ${lifestyle?.activityLevel || "light"}
-
-Hãy đưa ra đánh giá phân tích y khoa chuyên sâu bằng Tiếng Việt chuẩn xác.`;
-                    const aiResponse = await ai.models.generateContent({
-                        model: "gemini-1.5-flash",
-                        contents: prompt,
-                        config: {
-                            systemInstruction: "Bạn là Bác sĩ Trợ lý AI chuyên khoa Tim mạch và Nội tổng quát (VitalTrack Clinical AI Assistant). Đánh giá dựa trên tiêu chuẩn AHA/ACC và WHO, đưa ra chẩn đoán dự báo khách quan, chi tiết và có tính ứng dụng cao.",
-                            responseMimeType: "application/json",
-                            responseSchema: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    summary: { type: Type.STRING, description: "Đánh giá tóm tắt tổng quan" },
-                                    riskLevel: { type: Type.STRING, description: "low, moderate, high, hoặc critical" },
-                                    riskScore: { type: Type.NUMBER, description: "Điểm nguy cơ sức khỏe từ 0 - 100" },
-                                    possibleConditions: {
-                                        type: Type.ARRAY,
-                                        items: {
-                                            type: Type.OBJECT,
-                                            properties: {
-                                                name: { type: Type.STRING, description: "Tên bệnh lý hoặc hội chứng dự báo" },
-                                                probability: { type: Type.STRING, description: "Tỷ lệ khả năng, ví dụ 75%" },
-                                                description: { type: Type.STRING, description: "Giải thích cơ chế bệnh sinh tóm tắt" },
-                                            },
-                                            required: ["name", "probability", "description"],
-                                        },
-                                    },
-                                    vitalAnalysis: {
-                                        type: Type.OBJECT,
-                                        properties: {
-                                            bloodPressureStatus: { type: Type.STRING },
-                                            heartRateStatus: { type: Type.STRING },
-                                            bmiStatus: { type: Type.STRING },
-                                        },
-                                        required: ["bloodPressureStatus", "heartRateStatus"],
-                                    },
-                                    recommendations: {
-                                        type: Type.OBJECT,
-                                        properties: {
-                                            immediateActions: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                            lifestyleAdvice: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                            dietaryTips: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                            whenToSeeDoctor: { type: Type.STRING },
-                                        },
-                                        required: ["immediateActions", "lifestyleAdvice", "dietaryTips", "whenToSeeDoctor"],
-                                    },
-                                    disclaimer: { type: Type.STRING },
-                                },
-                                required: [
-                                    "summary",
-                                    "riskLevel",
-                                    "riskScore",
-                                    "possibleConditions",
-                                    "vitalAnalysis",
-                                    "recommendations",
-                                    "disclaimer",
-                                ],
-                            },
-                        },
-                    });
-                    const parsed = JSON.parse(aiResponse.text || "{}");
-                    if (parsed && parsed.summary) {
-                        diagnosisResult = {
-                            id: `ai_diag_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                            user_id: userId,
-                            summary: parsed.summary,
-                            riskLevel: ["low", "moderate", "high", "critical"].includes(parsed.riskLevel) ? parsed.riskLevel : "moderate",
-                            riskScore: typeof parsed.riskScore === "number" ? Math.min(100, Math.max(0, parsed.riskScore)) : 50,
-                            possibleConditions: parsed.possibleConditions || [],
-                            vitalAnalysis: parsed.vitalAnalysis || {
-                                bloodPressureStatus: bpStatus,
-                                heartRateStatus: hrStatus,
-                                bmiStatus: wt ? `Cân nặng hiện tại: ${wt} kg` : undefined,
-                            },
-                            recommendations: parsed.recommendations || {
-                                immediateActions: ["Nghỉ ngơi và theo dõi chỉ số huyết áp."],
-                                lifestyleAdvice: ["Duy trì chế độ sinh hoạt và ngủ đủ giấc."],
-                                dietaryTips: ["Uống đủ nước và giảm lượng muối trong khẩu phần."],
-                                whenToSeeDoctor: "Khám định kỳ sau 3-6 tháng hoặc khi có triệu chứng bất thường.",
-                            },
-                            disclaimer: parsed.disclaimer ||
-                                "Lưu ý: Kết quả phân tích được hỗ trợ bởi Trí tuệ Nhân tạo Google Gemini, mang tính tham khảo y khoa và không thay thế chẩn đoán chính thức của Bác sĩ chuyên khoa.",
-                            createdAt: new Date().toISOString(),
-                        };
-                    }
-                }
-                catch (geminiError) {
-                    console.warn("Gemini API call returned error, smoothly utilizing clinical fallback engine:", geminiError);
-                }
-            }
-            // Nếu chưa có kết quả từ AI (do chưa có API Key hoặc lỗi mạng), sử dụng Clinical Fallback Rule Engine
-            if (!diagnosisResult) {
-                let calculatedRisk = "low";
-                let totalRiskScore = Math.min(100, Math.max(15, bpRiskScore + symptoms.length * 12));
-                const conditions = [];
-                const immediateActions = [];
-                const lifestyleAdvice = [];
-                const dietaryTips = [];
-                const lowerSymptoms = symptoms.map((s) => s.toLowerCase());
-                if (lowerSymptoms.some((s) => s.includes("đau đầu") || s.includes("chóng mặt") || s.includes("hoa mắt"))) {
-                    conditions.push({
-                        name: sys >= 135 ? "Hội chứng tăng huyết áp nguyên phát" : "Rối loạn tuần hoàn não nhẹ do căng thẳng",
-                        probability: sys >= 135 ? "78%" : "65%",
-                        description: "Có dấu hiệu suy giảm lưu thông máu não tạm thời hoặc biến động chỉ số huyết áp động mạch.",
-                    });
-                    immediateActions.push("Nghỉ ngơi tại nơi thoáng khí, ngồi hoặc nằm thư giãn trong 15-20 phút.");
-                    immediateActions.push("Đo lại huyết áp sau khi nghỉ ngơi để đối chiếu chỉ số.");
-                }
-                if (lowerSymptoms.some((s) => s.includes("tức ngực") || s.includes("khó thở") || s.includes("hồi hộp"))) {
-                    calculatedRisk = "high";
-                    totalRiskScore = Math.max(totalRiskScore, 80);
-                    conditions.push({
-                        name: "Cảnh báo quá tải tim mạch hoặc co thắt mạch vành",
-                        probability: "72%",
-                        description: "Xuất hiện dấu hiệu thiếu máu cơ tim cục bộ hoặc căng thẳng áp lực tim mạch quá mức.",
-                    });
-                    immediateActions.push("Dừng ngay các hoạt động thể lực nặng, ngồi tựa lưng thẳng.");
-                    immediateActions.push("Nếu đau tức ngực lan ra vai trái hoặc kéo dài trên 10 phút, cần đến ngay cơ sở y tế gần nhất.");
-                }
-                if (lowerSymptoms.some((s) => s.includes("mệt mỏi") || s.includes("mất ngủ") || s.includes("uể oải"))) {
-                    conditions.push({
-                        name: "Hội chứng suy nhược thể lực & rối loạn giấc ngủ",
-                        probability: "60%",
-                        description: "Thiếu hụt phục hồi thần kinh tự chủ, thường do áp lực công việc hoặc thiếu ngủ kéo dài.",
-                    });
-                    lifestyleAdvice.push("Thiết lập khung giờ ngủ cố định trước 23h00 hàng đêm.");
-                    lifestyleAdvice.push("Hạn chế tiếp xúc màn hình ánh sáng xanh trước khi đi ngủ ít nhất 45 phút.");
-                }
-                if (conditions.length === 0) {
-                    conditions.push({
-                        name: "Chỉ số sinh tồn ổn định (Không phát hiện bệnh lý cấp tính)",
-                        probability: "90%",
-                        description: "Các chỉ số huyết áp, nhịp tim và cân nặng hiện tại đang nằm trong ngưỡng kiểm soát an toàn.",
-                    });
-                    immediateActions.push("Duy trì chế độ sinh hoạt và theo dõi định kỳ đều đặn.");
-                }
-                if (sys >= 130) {
-                    dietaryTips.push("Giảm lượng muối natri xuống dưới 5g/ngày (tránh đồ kho mặn, đồ đóng hộp).");
-                    dietaryTips.push("Tăng cường thực phẩm giàu Kali và Magie: chuối, rau bina, bơ, hạnh nhân.");
-                }
-                else {
-                    dietaryTips.push("Bổ sung đủ 2.0 - 2.5 lít nước lọc mỗi ngày để đảm bảo thể tích tuần hoàn máu.");
-                    dietaryTips.push("Tăng cường rau xanh, củ quả tươi giàu chất chống oxy hóa.");
-                }
-                lifestyleAdvice.push("Duy trì đi bộ hoặc vận động nhẹ nhàng tối thiểu 30 phút/ngày (5 buổi/tuần).");
-                if (totalRiskScore >= 75) {
-                    calculatedRisk = "high";
-                }
-                else if (totalRiskScore >= 45) {
-                    calculatedRisk = "moderate";
-                }
-                else {
-                    calculatedRisk = "low";
-                }
-                diagnosisResult = {
-                    id: `ai_diag_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                    user_id: userId,
-                    summary: `Đánh giá tổng quan: ${calculatedRisk === "high"
-                        ? "Cần chú ý đặc biệt các dấu hiệu tim mạch / huyết áp"
-                        : calculatedRisk === "moderate"
-                            ? "Có một số chỉ số cần điều chỉnh lối sống và theo dõi thêm"
-                            : "Sức khỏe tổng thể đang trong tầm kiểm soát tốt"}.`,
-                    riskLevel: calculatedRisk,
-                    riskScore: totalRiskScore,
-                    possibleConditions: conditions,
-                    vitalAnalysis: {
-                        bloodPressureStatus: bpStatus,
-                        heartRateStatus: hrStatus,
-                        bmiStatus: wt ? `Cân nặng hiện tại: ${wt} kg` : undefined,
-                    },
-                    recommendations: {
-                        immediateActions: immediateActions.length > 0 ? immediateActions : ["Thư giãn tinh thần và theo dõi nhịp thở."],
-                        lifestyleAdvice,
-                        dietaryTips,
-                        whenToSeeDoctor: calculatedRisk === "high"
-                            ? "Nên đến gặp Bác sĩ Chuyên khoa Tim mạch/Nội tổng quát trong vòng 24-48 giờ nếu triệu chứng tái diễn."
-                            : "Khám sức khỏe định kỳ sau 3-6 tháng hoặc khi chỉ số huyết áp có biến động liên tục trên 140/90 mmHg.",
-                    },
-                    disclaimer: "Lưu ý: Kết quả phân tích và chuẩn đoán mang tính chất gợi ý và hỗ trợ tham khảo từ trí tuệ nhân tạo, không thay thế cho kết luận chẩn đoán lâm sàng chính thức từ Bác sĩ hoặc Cơ sở Y tế có thẩm quyền.",
-                    createdAt: new Date().toISOString(),
-                };
-            }
-            dbAIDiagnosisHistory.unshift(diagnosisResult);
-            const clientIp = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "127.0.0.1";
-            logSystemActivity("RECORD_CREATED", "info", `Tài khoản ${req.user.email} đã thực hiện phân tích sức khỏe AI`, {
-                userId: req.user.id,
-                userName: req.user.full_name,
-                userEmail: req.user.email,
-                userRole: req.user.role,
-                ip: clientIp,
-            });
-            return res.status(200).json({
-                success: true,
-                data: diagnosisResult,
-            });
-        }
-        catch (err) {
-            return res.status(500).json({
-                success: false,
-                message: "Lỗi trong quá trình xử lý chuẩn đoán AI: " + (err.message || err),
-            });
-        }
-    });
-    // Endpoint: Trò chuyện & Tư vấn trực tiếp với Bác sĩ Trợ lý AI (Google Gemini AI Doctor)
-    app.post("/api/ai/chat", authenticateJWT, async (req, res) => {
-        try {
-            const { message, history = [] } = req.body;
-            if (!message || typeof message !== "string" || !message.trim()) {
-                return res.status(400).json({ success: false, message: "Nội dung tin nhắn không được để trống." });
-            }
-            const userId = req.user.id;
-            const user = dbUsers.find((u) => u.id === userId);
-            const userRecords = dbHealthRecords
-                .filter((r) => r.user_id === userId)
-                .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())
-                .slice(0, 5);
-            const ai = getGeminiAI();
-            if (!ai) {
-                return res.status(200).json({
-                    success: true,
-                    data: {
-                        reply: `Xin chào **${user?.full_name || "bạn"}**, tôi là **Bác sĩ Trợ lý Sức khỏe VitalTrack AI**.\n\n` +
-                            `Hiện tại hệ thống đang chạy ở chế độ dự phòng lâm sàng. Để kích hoạt toàn bộ sức mạnh phân tích chuyên sâu của Google Gemini AI, hệ thống sẽ tự động sử dụng khóa \`GEMINI_API_KEY\` được cấu hình trong Secrets.\n\n` +
-                            `**Lời khuyên tim mạch cho bạn:**\n` +
-                            `1. Hãy duy trì đo huyết áp 2 lần/ngày (buổi sáng khi vừa thức dậy và buổi tối trước khi đi ngủ).\n` +
-                            `2. Uống đủ 2 - 2.5 lít nước mỗi ngày và hạn chế ăn đồ mặn (dưới 5g muối/ngày).\n` +
-                            `3. Nếu bạn cảm thấy tức ngực khó thở hoặc đau đầu dữ dội, hãy nghỉ ngơi và liên hệ bác sĩ ngay.`,
-                        model: "system-fallback",
-                    },
-                });
-            }
-            const contextInfo = `Bệnh nhân: ${user?.full_name || "Người dùng"}, Giới tính: ${user?.gender || "Không rõ"}, Ngày sinh: ${user?.date_of_birth || "Không rõ"}. ` +
-                `Tiền sử bệnh lý: ${user?.chronic_conditions?.join(", ") || "Không ghi nhận"}. ` +
-                `Dị ứng: ${user?.allergies?.join(", ") || "Không có"}. ` +
-                `Lịch sử đo sinh trắc gần nhất: ${userRecords.map((r) => `[${r.recorded_at.split("T")[0]}: HA ${r.systolic}/${r.diastolic} mmHg, Tim ${r.heart_rate} bpm, Nặng ${r.weight} kg]`).join("; ") || "Chưa có bản ghi"}.`;
-            const contents = [];
-            if (Array.isArray(history)) {
-                for (const item of history.slice(-6)) {
-                    if (item && item.role && item.text) {
-                        contents.push({
-                            role: item.role === "user" ? "user" : "model",
-                            parts: [{ text: String(item.text) }],
-                        });
-                    }
-                }
-            }
-            contents.push({
-                role: "user",
-                parts: [{ text: message }],
-            });
-            const response = await ai.models.generateContent({
-                model: "gemini-1.5-flash",
-                contents,
-                config: {
-                    systemInstruction: `Bạn là Bác sĩ Trợ lý Tư vấn Y khoa VitalTrack AI (VitalTrack AI Doctor) được vận hành bởi mô hình Google Gemini.
-Ngữ cảnh lâm sàng của người dùng hiện tại:
-${contextInfo}
-
-Nhiệm vụ của bạn:
-1. Giải đáp các thắc mắc về sức khỏe, chỉ số tim mạch, huyết áp, cân nặng, nhịp tim, dinh dưỡng, lối sống và tập luyện bằng Tiếng Việt ân cần, khoa học, dễ hiểu và chuyên nghiệp.
-2. Luôn căn cứ vào hướng dẫn của Hội Tim Mạch Việt Nam (VNHA), Hiệp hội Tim mạch Hoa Kỳ (AHA) và WHO.
-3. Khi nhận thấy các triệu chứng cấp cứu nguy hiểm (đau thắt ngực lan ra vai/hàm, khó thở cấp, đột ngột yếu liệt, méo miệng...), lập tức cảnh báo khẩn cấp và hướng dẫn gọi cấp cứu 115 hoặc đến bệnh viện gần nhất.
-4. Giữ câu trả lời súc tích, định dạng markdown rõ ràng (tiêu đề, gạch đầu dòng), kèm lời chúc sức khỏe và nhắc nhở miễn trừ trách nhiệm y khoa ngắn gọn.`,
-                },
-            });
-            const reply = response.text || "Bác sĩ AI chưa thể phản hồi lúc này, xin vui lòng thử lại sau giây lát.";
-            return res.status(200).json({
-                success: true,
-                data: {
-                    reply,
-                    model: "gemini-1.5-flash",
-                },
-            });
-        }
-        catch (err) {
-            console.error("Gemini AI Chat Error:", err);
-            return res.status(500).json({
-                success: false,
-                message: "Lỗi kết nối tới mô hình AI: " + (err.message || err),
-            });
-        }
-    });
-    // Endpoint: Lấy lịch sử tư vấn chuẩn đoán AI
-    app.get("/api/ai/history", authenticateJWT, (req, res) => {
-        const userId = req.user.id;
-        const history = dbAIDiagnosisHistory.filter((d) => d.user_id === userId);
-        return res.status(200).json({
-            success: true,
-            data: history,
-        });
-    });
-    // =========================================================================
-    // 🔌 2. CONNECTED PERIPHERAL / IOT HARDWARE API ENDPOINTS
-    // =========================================================================
-    //
-    // 📌 GHI CHÚ TÍCH HỢP PHẦN CỨNG NGOẠI VI (HARDWARE / IOT INTEGRATION):
-    // Thiết bị ngoại vi (Đồng hồ thông minh, máy đo huyết áp Bluetooth/WiFi, ESP32,
-    // Raspberry Pi, cảm biến SpO2/ECG) có thể gửi dữ liệu trực tiếp vào hệ thống
-    // qua Endpoint: POST /api/devices/ingest
-    //
-    // =========================================================================
+    registerAIRoutes(app, { authenticateJWT, getAI: getGeminiAI, audit: createAuditLog });
+    registerDeviceWriteRoutes(app, { authenticateJWT, audit: createAuditLog });
     // Danh sách thiết bị ngoại vi đã kết nối của user
     app.get("/api/devices", authenticateJWT, async (req, res) => {
         try {
@@ -3545,70 +2638,11 @@ Nhiệm vụ của bạn:
             }));
             return res.status(200).json({ success: true, data: formattedDevices });
         } catch (error) {
-            console.error('Error GET /api/devices:', error);
+            console.error('Error GET /api/devices:', error.code || error.name);
             return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
         }
     });
     // Đăng ký ghép nối thiết bị mới (Pairing Device)
-    app.post("/api/devices/pair", authenticateJWT, async (req, res) => {
-        try {
-            const { name, type, model, macAddress } = req.body;
-            const userId = req.user.id;
-            if (!name || !type) {
-                return res.status(400).json({ success: false, message: "Tên thiết bị và loại thiết bị là bắt buộc." });
-            }
-            const deviceId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-            const deviceModel = model || "Standard BLE Peripheral";
-            const macAddr = macAddress || "00:1A:7D:DA:71:13";
-            const fwVer = "v1.0.0";
-            const pool = getMySQLPool();
-            await pool.execute(
-                'INSERT INTO connected_devices (id, user_id, name, type, model, battery_level, status, last_sync_time, mac_address, firmware_version) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)',
-                [deviceId, userId, name, type, deviceModel, 100, "connected", macAddr, fwVer]
-            );
-            return res.status(201).json({
-                success: true,
-                message: `Đã kết nối thành công thiết bị ${name}`,
-                data: { id: deviceId, user_id: userId, name, type, model: deviceModel, batteryLevel: 100, status: "connected", macAddress: macAddr, firmwareVersion: fwVer }
-            });
-        } catch (error) {
-            console.error('Error POST /api/devices/pair:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Đồng bộ thủ công dữ liệu từ thiết bị ngoại vi
-    app.post("/api/devices/:deviceId/sync", authenticateJWT, async (req, res) => {
-        try {
-            const { deviceId } = req.params;
-            const userId = req.user.id;
-            const pool = getMySQLPool();
-            const [devices] = await pool.query('SELECT * FROM connected_devices WHERE id = ? AND user_id = ?', [deviceId, userId]);
-            const device = devices[0];
-            if (!device) {
-                return res.status(404).json({ success: false, message: "Không tìm thấy thiết bị ngoại vi này." });
-            }
-            const newBattery = Math.max(0, (device.battery_level || 100) - 1);
-            await pool.execute('UPDATE connected_devices SET status = ?, battery_level = ?, last_sync_time = NOW() WHERE id = ?', ["connected", newBattery, deviceId]);
-            const weight = device.type === "smart_scale" ? 68.2 : 68.0;
-            const systolic = device.type === "blood_pressure_monitor" ? 118 : 120;
-            const diastolic = device.type === "blood_pressure_monitor" ? 78 : 80;
-            const heart_rate = device.type === "smartwatch" ? 74 : 72;
-            const notes = `Dữ liệu sinh trắc học nhận tự động từ [${device.name} - Model: ${device.model}]`;
-            const [result] = await pool.execute(
-                'INSERT INTO health_records (user_id, weight, systolic, diastolic, heart_rate, recorded_at, notes) VALUES (?, ?, ?, ?, ?, NOW(), ?)',
-                [userId, weight, systolic, diastolic, heart_rate, notes]
-            );
-            return res.status(200).json({
-                success: true,
-                message: `Đã đồng bộ dữ liệu thành công từ ${device.name}!`,
-                data: { syncedRecordId: result.insertId, deviceId }
-            });
-        } catch (error) {
-            console.error('Error syncing device:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi đồng bộ máy chủ' });
-        }
-    });
-    // Xóa / Ngắt kết nối thiết bị ngoại vi
     app.delete("/api/devices/:deviceId", authenticateJWT, async (req, res) => {
         try {
             const { deviceId } = req.params;
@@ -3620,37 +2654,12 @@ Nhiệm vụ của bạn:
             }
             return res.status(200).json({ success: true, message: "Đã ngắt kết nối thiết bị." });
         } catch (error) {
-            console.error('Error deleting device:', error);
+            console.error('Error deleting device:', error.code || error.name);
             return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
         }
     });
     // Direct Ingest Endpoint for IoT Hardware (API Webhook / Direct Telemetry push)
-    app.post("/api/devices/ingest", authenticateJWT, async (req, res) => {
-        try {
-            const userId = req.user.id;
-            const { deviceId, weight, systolic, diastolic, heart_rate, notes } = req.body;
-            const nWeight = Number(weight) || 68.0;
-            const nSys = Number(systolic) || 120;
-            const nDia = Number(diastolic) || 80;
-            const nHr = Number(heart_rate) || 72;
-            const rNotes = notes || `Ghi nhận trực tiếp từ cổng ngoại vi IoT (Thiết bị ID: ${deviceId || "External Sensor"})`;
-            const pool = getMySQLPool();
-            const [result] = await pool.execute(
-                'INSERT INTO health_records (user_id, weight, systolic, diastolic, heart_rate, recorded_at, notes) VALUES (?, ?, ?, ?, ?, NOW(), ?)',
-                [userId, nWeight, nSys, nDia, nHr, rNotes]
-            );
-            return res.status(201).json({
-                success: true,
-                message: "Dữ liệu ngoại vi đã được nạp thành công vào cơ sở dữ liệu thật.",
-                data: { id: result.insertId }
-            });
-        } catch (error) {
-            console.error('Error ingesting device data:', error);
-            return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
-        }
-    });
-    // Endpoint: Kiểm tra trạng thái kết nối MySQL Database
-    app.get("/api/database/status", async (req, res) => {
+    app.get("/api/database/status", authenticateJWT, requireAdmin, async (req, res) => {
         try {
             const pool = getMySQLPool();
             const connection = await pool.getConnection();
@@ -3685,7 +2694,13 @@ Nhiệm vụ của bạn:
         }
     });
     // Cấu hình chế độ chạy: API thuần túy (API Only) hoặc Tích hợp Fullstack
-    if (isApiOnly) {
+    app.use((error, req, res, next) => {
+        if (!req.path.startsWith('/api/')) return next(error);
+        const status = error.type === 'entity.parse.failed' ? 400 : error.status === 413 ? 413 : 500;
+        return res.status(status).json({ success: false, message: status === 400 ? 'Invalid JSON request body.' : status === 413 ? 'Request body too large.' : 'Internal server error.' });
+    });
+    app.use('/api', (req, res) => res.status(404).json({ success: false, message: 'API route not found.' }));
+    if (apiOnly) {
         // =========================================================================
         // CHẾ ĐỘ MÁY CHỦ REST API THUẦN TÚY (PURE REST API SERVER)
         // Tuyệt đối KHÔNG chạy giao diện Client, KHÔNG nạp Vite middleware
@@ -3703,7 +2718,7 @@ Nhiệm vụ của bạn:
                     health: "/api/health",
                     auth_login: "POST /api/auth/login",
                     auth_register: "POST /api/auth/register",
-                    health_records: "GET /api/health-records",
+                    health_records: "GET /api/health",
                     audit_logs: "GET /api/admin/audit-logs",
                     database_status: "GET /api/database/status"
                 },
@@ -3736,8 +2751,9 @@ Nhiệm vụ của bạn:
             });
         }
     }
-    app.listen(PORT, "0.0.0.0", () => {
-        if (isApiOnly) {
+    if (!listen) return app;
+    return app.listen(PORT, "0.0.0.0", () => {
+        if (apiOnly) {
             console.log(`\n========================================================`);
             console.log(`🚀 VitalTrack PURE REST API SERVER running on http://localhost:${PORT}`);
             console.log(`📌 Chế độ: API Thuần túy (KHÔNG chứa giao diện Client)`);
@@ -3749,4 +2765,4 @@ Nhiệm vụ của bạn:
         }
     });
 }
-startServer();
+if (process.env.VITALTRACK_NO_AUTOSTART !== "true") startServer();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { UserHeader } from "../../components/layout/UserHeader";
 import { Button } from "../../components/common/Button";
 import { GoalModal } from "../../components/forms/GoalModal";
@@ -15,6 +15,9 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useDataSync } from '../../hooks/useDataSync';
+import { DataStatus } from '../../components/common/DataStatus';
+import { useNavigate } from 'react-router-dom';
 
 export const GoalsPage = () => {
   const { success, error } = useToast();
@@ -27,26 +30,34 @@ const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [progressModalGoal, setProgressModalGoal] = useState(null);
   const [newCurrentValue, setNewCurrentValue] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const navigate = useNavigate();
 
+  const loadVersion = useRef(0);
   const fetchGoals = async () => {
+    const version = ++loadVersion.current;
     try {
       setLoading(true);
       const res = await goalsApi.getAll();
+      if (version !== loadVersion.current) return;
+      setLoadError(res.success ? '' : res.message);
       if (res.success && res.data) {
         setGoals(res.data);
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchGoals();
   }, []);
+  useDataSync(fetchGoals, ['health', 'goals'], true);
 
   const handleOpenProgressUpdate = (goal) => {
+    if (goal.metric_type !== 'exercise') { navigate('/health?record=1'); return; }
     setProgressModalGoal(goal);
     setNewCurrentValue(String(goal.current_value));
   };
@@ -121,8 +132,9 @@ const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
         }}
         actionText="Tạo mục tiêu mới"
       />
+      <DataStatus loading={loading} error={loadError} onRetry={fetchGoals} />
 
-      {goals.length === 0 ? (
+      {!loading && !loadError && goals.length === 0 ? (
         <motion.div
           variants={itemVariants}
           className="bg-slate-50/50 rounded-2xl border border-slate-200/60 border-dashed p-12 text-center my-auto mx-4 sm:mx-0 flex flex-col items-center"
@@ -208,7 +220,7 @@ const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
                     </div>
                   </div>
 
-                  {/* 3 Metric Points */}
+      {/* 3 Metric Points */}
                   <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50/80 rounded-xl mb-6 text-center border border-slate-100/60">
                     <div>
                       <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1">
@@ -226,7 +238,7 @@ const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
                         Hiện tại
                       </p>
                       <p className="text-base font-bold text-primary-600 truncate">
-                        {goal.current_value}{" "}
+                        {goal.current_value ?? "Chưa có số đo"}{" "}
                         <span className="text-[10px] font-semibold text-primary-600">
                           {goal.unit}
                         </span>

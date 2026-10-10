@@ -1,3 +1,4 @@
+import { publishDataChange } from '../hooks/useDataSync';
 // Standard API Base URL
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL || "/api"
@@ -6,7 +7,18 @@ function getAuthHeader() {
   const token = localStorage.getItem("vitaltrack_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
-async function request(endpoint, options = {}) {
+const pendingReads = new Map();
+function request(endpoint, options = {}) {
+  if (options.method && options.method !== 'GET') return performRequest(endpoint, options);
+  const key = `${getAuthHeader().Authorization || ''}:${endpoint}`;
+  if (pendingReads.has(key)) return pendingReads.get(key);
+  const promise = performRequest(endpoint, options).finally(() => { if (pendingReads.get(key) === promise) pendingReads.delete(key); });
+  pendingReads.set(key, promise);
+  return promise;
+}
+async function performRequest(endpoint, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
   const headers = {
     "Content-Type": "application/json",
     ...getAuthHeader(),
@@ -15,11 +27,10 @@ async function request(endpoint, options = {}) {
   try {
     const url = `${API_BASE_URL}/${endpoint.replace(/^\/+/, "")}`;
 
-    console.log("[API] Request:", url);
-
     const res = await fetch(url, {
       ...options,
       headers,
+      signal: options.signal || controller.signal,
     });
 
     const rawResponse = await res.text();
@@ -36,25 +47,26 @@ async function request(endpoint, options = {}) {
     }
 
     if (!res.ok) {
-      console.error("[API] HTTP Error:", {
-        url,
-        status: res.status,
-        response: data,
-      });
-
-      throw new Error(data.message || `Lỗi yêu cầu: ${res.status}`);
+      if (res.status === 401 && !endpoint.startsWith('/auth/login') && headers.Authorization === getAuthHeader().Authorization) window.dispatchEvent(new Event('vitaltrack:auth-expired'));
+      return { success: false, message: data.message || `Lỗi yêu cầu: ${res.status}`, status: res.status, code: data.code };
     }
 
-    return data;
+    if (typeof data.success !== 'boolean') return { success: false, message: 'Response API không đúng định dạng.', status: res.status };
+    if (data.success && options.method && options.method !== 'GET') {
+      pendingReads.clear();
+      let resource = endpoint.replace(/^\//, '').split('/')[0];
+      if (/^\/admin\/telemetry/.test(endpoint) || /^\/devices\/(ingest|[^/]+\/sync)/.test(endpoint)) resource = 'health';
+      publishDataChange(resource);
+    }
+    return { ...data, status: res.status };
 
   } catch (error) {
-    console.error("[API] Request failed:", error);
-
     return {
       success: false,
-      message: error.message || "Lỗi kết nối máy chủ",
+      message: error.name === 'AbortError' ? 'Máy chủ phản hồi chậm. Kiểm tra lại dữ liệu trước khi thử lưu lần nữa.' : error.message || "Lỗi kết nối máy chủ",
+      status: 0,
     };
-  }
+  } finally { clearTimeout(timeout); }
 }
 // ==========================================
 // API SERVICES

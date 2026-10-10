@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect } from "react";
 import { adminApi } from "../../api/client";
 import { useToast } from "../../context/ToastContext";
@@ -5,6 +6,7 @@ import { Input } from "../../components/common/Input";
 import { Button } from "../../components/common/Button";
 import { Modal } from "../../components/common/Modal";
 import {
+  Activity,
   Bot,
   Search,
   Filter,
@@ -18,6 +20,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 export const AdminAiReviewsPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const { success, error } = useToast();
   const [diagnoses, setDiagnoses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +38,9 @@ const [selectedRecord, setSelectedRecord] = useState(null);
         riskLevel: riskFilter,
         search,
       });
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
+      if (!Array.isArray(res.data)) { setLoadError('Invalid API response: expected an array.'); return; }
       if (res.success && res.data) {
         setDiagnoses(res.data);
       }
@@ -76,9 +83,9 @@ const [selectedRecord, setSelectedRecord] = useState(null);
     }
   };
   const total = diagnoses.length;
-  const highRiskCount = diagnoses.filter((d) => d.riskLevel === "high").length;
+  const highRiskCount = diagnoses.filter((d) => ['high', 'critical'].includes(d.riskLevel)).length;
   const mediumRiskCount = diagnoses.filter(
-    (d) => d.riskLevel === "medium",
+    (d) => d.riskLevel === "moderate" || d.riskLevel === "medium",
   ).length;
   const reviewedCount = diagnoses.filter((d) => d.physician_reviewed).length;
   const containerVariants = {
@@ -96,6 +103,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
       variants={containerVariants}
       className="flex flex-col flex-1 pb-12"
     >
+      <DataStatus error={loadError} onRetry={fetchDiagnoses} />
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-semibold uppercase tracking-wider mb-2">
@@ -106,7 +114,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
             AI Diagnosis Audit & Review
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Bác sĩ chuyên khoa giám sát và phê duyệt các chuẩn đoán tự động từ mô hình AI
+            Thẩm định nhận xét chỉ số và giải thích AI; không thay thế chẩn đoán y khoa. Mức cảnh báo không phải xác suất mắc bệnh.
           </p>
         </div>
       </header>
@@ -181,7 +189,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
           {[
             { id: "all", label: "Tất cả" },
             { id: "high", label: "🚨 Rủi ro cao" },
-            { id: "medium", label: "⚠️ Rủi ro vừa" },
+            { id: "moderate", label: "⚠️ Cần theo dõi thêm" },
             { id: "low", label: "✅ Rủi ro thấp" },
           ].map((tab) => (
             <button
@@ -220,8 +228,8 @@ const [selectedRecord, setSelectedRecord] = useState(null);
           <div className="space-y-4">
             <AnimatePresence>
               {diagnoses.map((diag) => {
-                const isHigh = diag.riskLevel === "high";
-                const isMed = diag.riskLevel === "medium";
+                const isHigh = ['high', 'critical'].includes(diag.riskLevel);
+                const isMed = diag.riskLevel === "moderate" || diag.riskLevel === "medium";
                 return (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -289,7 +297,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
                         {/* Triệu chứng & Bệnh lý nghi ngờ */}
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
-                            Bệnh cảnh AI (Top):
+                            Nhận xét tham khảo:
                           </span>
                           {diag.possibleConditions
                             .slice(0, 3)
@@ -300,7 +308,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
                               >
                                 {cond.name}
                                 <span className="text-slate-500 font-mono">
-                                  {Math.round(cond.probability * 100)}%
+                                  Chưa có xác suất được kiểm chứng
                                 </span>
                               </span>
                             ))}
@@ -347,7 +355,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
       <Modal
         isOpen={!!selectedRecord}
         onClose={() => setSelectedRecord(null)}
-        title="Thẩm Định & Phê Duyệt Chẩn Đoán AI"
+        title="Thẩm định phân tích chỉ số AI"
         subtitle={`Bệnh nhân: ${selectedRecord?.user_name} (${selectedRecord?.user_email})`}
         maxWidth="lg"
       >
@@ -359,7 +367,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
                   <Bot className="w-3.5 h-3.5 text-indigo-600" /> Tóm tắt suy luận của AI
                 </span>
                 <span
-                  className={`text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border ${selectedRecord.riskLevel === "high" ? "bg-rose-50 text-rose-700 border-rose-200" : selectedRecord.riskLevel === "medium" ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}
+                  className={`text-[9px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded border ${['high', 'critical'].includes(selectedRecord.riskLevel) ? "bg-rose-50 text-rose-700 border-rose-200" : ['moderate', 'medium'].includes(selectedRecord.riskLevel) ? "bg-orange-50 text-orange-700 border-orange-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}
                 >
                   Mức độ: {selectedRecord.riskLevel}
                 </span>
@@ -373,7 +381,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="bg-white p-4 rounded-md border border-slate-200">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-rose-500" /> Bệnh lý dự báo & Xác suất
+                  <Activity className="w-3.5 h-3.5 text-rose-500" /> Nhận xét và giới hạn
                 </p>
                 <div className="space-y-3">
                   {selectedRecord.possibleConditions.map((c, i) => (
@@ -384,7 +392,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
                       <div className="flex justify-between font-semibold text-slate-800 mb-0.5">
                         <span>{c.name}</span>
                         <span className="text-slate-500 font-mono">
-                          {Math.round(c.probability * 100)}%
+                          Chưa có xác suất được kiểm chứng
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-500">
@@ -399,7 +407,7 @@ const [selectedRecord, setSelectedRecord] = useState(null);
                   <FileText className="w-3.5 h-3.5 text-emerald-500" /> Hành động AI khuyến nghị
                 </p>
                 <ul className="space-y-2">
-                  {selectedRecord.recommendations.map((r, i) => (
+                  {Object.values(selectedRecord.recommendations ?? {}).flatMap(value => Array.isArray(value) ? value : typeof value === 'string' && value ? [value] : []).map((r, i) => (
                     <li
                       key={i}
                       className="flex items-start gap-2 text-xs text-slate-700"

@@ -5,7 +5,10 @@ coverage/
 .DS_Store
 *.log
 .env*
-!.env.exampledist-pages/
+!.env.example
+dist-pages/
 
 database/backups/
 database/certs/
+
+dist-pages/

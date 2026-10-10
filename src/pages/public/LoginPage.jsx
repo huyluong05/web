@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ContextHelp } from '../../components/common/ContextHelp';
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "motion/react";
 import { Input } from "../../components/common/Input";
@@ -106,6 +107,7 @@ export const LoginPage = () => {
               </motion.div>
             )}
 
+            <ContextHelp />
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
                 label="Email"
@@ -185,6 +187,7 @@ export const LoginPage = () => {
                 type="button"
                 disabled={loading}
                 onClick={() => {
+                  if (!import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_AUTH !== 'true') { toastError('Đăng nhập Google chưa được cấu hình. Vui lòng dùng email và mật khẩu.'); return; }
                   const popup = window.open('https://accounts.google.com/o/oauth2/v2/auth?client_id=123456789-mockclient.apps.googleusercontent.com&redirect_uri=http://localhost:5173/callback&response_type=token&scope=email%20profile', 'GoogleLogin', 'width=500,height=600');
                   if (!popup) {
                     toastError("Vui lòng cho phép trình duyệt mở popup (Allow Popups) để tiếp tục!");
@@ -237,6 +240,7 @@ export const LoginPage = () => {
                 type="button"
                 disabled={loading}
                 onClick={() => {
+                  if (!import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_AUTH !== 'true') { toastError('Đăng nhập Apple chưa được cấu hình. Vui lòng dùng email và mật khẩu.'); return; }
                   const popup = window.open('https://appleid.apple.com/auth/authorize?client_id=mock.apple.client&redirect_uri=http://localhost:5173/callback&response_type=code', 'AppleLogin', 'width=500,height=600');
                   if (!popup) {
                     toastError("Vui lòng cho phép trình duyệt mở popup (Allow Popups) để tiếp tục!");

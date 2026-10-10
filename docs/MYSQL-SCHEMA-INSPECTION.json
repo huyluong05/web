@@ -1,0 +1,1048 @@
+{
+  "checkedAt": "2026-10-10T06:50:10.341Z",
+  "source": "read-only configured MySQL connection; no credentials or personal rows included",
+  "server": {
+    "version": "8.0.46",
+    "session_timezone": "SYSTEM",
+    "system_timezone": "SE Asia Standard Time"
+  },
+  "columns": [
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "summary",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "risk_level",
+      "COLUMN_TYPE": "enum('low','moderate','high','critical')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "low",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "risk_score",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "possible_conditions",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "vital_analysis",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "recommendations",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "disclaimer",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "physician_reviewed",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "physician_notes",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "user_name",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "user_role",
+      "COLUMN_TYPE": "varchar(30)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "guest",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "action",
+      "COLUMN_TYPE": "varchar(60)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "module",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "page",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "resource_type",
+      "COLUMN_TYPE": "varchar(60)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "resource_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "varchar(500)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "metadata",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "ip_address",
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "user_agent",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('SUCCESS','FAILED')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "SUCCESS",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "type",
+      "COLUMN_TYPE": "enum('blood_pressure_monitor','smartwatch','smart_scale','pulse_oximeter','glucose_meter')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "model",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "battery_level",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "100",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('connected','syncing','disconnected','idle')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "idle",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "last_sync_time",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "mac_address",
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "firmware_version",
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "metric_type",
+      "COLUMN_TYPE": "enum('weight','blood_pressure','heart_rate','exercise')",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "start_value",
+      "COLUMN_TYPE": "decimal(7,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "target_value",
+      "COLUMN_TYPE": "decimal(7,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "current_value",
+      "COLUMN_TYPE": "decimal(7,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "unit",
+      "COLUMN_TYPE": "varchar(20)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('in_progress','completed')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "in_progress",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "goals",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "weight",
+      "COLUMN_TYPE": "decimal(5,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "systolic",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "diastolic",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "heart_rate",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "recorded_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "notes",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "doctor_reviewed",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "doctor_notes",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "COLUMN_NAME": "user_id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "COLUMN_NAME": "type",
+      "COLUMN_TYPE": "enum('water','exercise','medication','measurement')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "water",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "COLUMN_NAME": "time_of_day",
+      "COLUMN_TYPE": "varchar(10)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "COLUMN_NAME": "is_active",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "1",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "1",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "bp_systolic_warning_threshold",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "130",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "bp_diastolic_warning_threshold",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "85",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "bp_crisis_systolic_threshold",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "160",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "bp_crisis_diastolic_threshold",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "100",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "hr_high_threshold",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "100",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "hr_low_threshold",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "55",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "session_timeout_minutes",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "120",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "allow_user_registration",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "1",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "maintenance_mode",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "0",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "selected_ai_model",
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "gemini-3.7-flash",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "full_name",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "email",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "password",
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "role",
+      "COLUMN_TYPE": "enum('user','admin')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "user",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "is_active",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "1",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "phone_number",
+      "COLUMN_TYPE": "varchar(30)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "date_of_birth",
+      "COLUMN_TYPE": "date",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "gender",
+      "COLUMN_TYPE": "enum('male','female','other')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "other",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "address",
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "occupation",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "avatar_url",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "height_cm",
+      "COLUMN_TYPE": "decimal(5,2)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "170.00",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "base_weight_kg",
+      "COLUMN_TYPE": "decimal(5,2)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "68.00",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "target_weight_kg",
+      "COLUMN_TYPE": "decimal(5,2)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "65.00",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "blood_type",
+      "COLUMN_TYPE": "varchar(10)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "unknown",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "activity_level",
+      "COLUMN_TYPE": "varchar(30)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "moderate",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "chronic_conditions",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "allergies",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "current_medications",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "medical_notes",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "primary_doctor",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "hospital_clinic",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "emergency_contact_name",
+      "COLUMN_TYPE": "varchar(150)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "emergency_contact_relationship",
+      "COLUMN_TYPE": "varchar(50)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "emergency_contact_phone",
+      "COLUMN_TYPE": "varchar(30)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "weight_unit",
+      "COLUMN_TYPE": "enum('kg','lbs')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "kg",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "height_unit",
+      "COLUMN_TYPE": "enum('cm','inch')",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "cm",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "email_notifications",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "1",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "vital_alert_thresholds",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": null,
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "indexes": [
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "INDEX_NAME": "idx_ai_user",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "ai_diagnoses",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "INDEX_NAME": "idx_audit_action",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "action"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "INDEX_NAME": "idx_audit_created_at",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "created_at"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "INDEX_NAME": "idx_audit_module",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "module"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "INDEX_NAME": "idx_audit_status",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "status"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "INDEX_NAME": "idx_audit_user",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "INDEX_NAME": "idx_devices_user",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "connected_devices",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "goals",
+      "INDEX_NAME": "idx_goals_user",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "goals",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "INDEX_NAME": "idx_records_user_time",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "INDEX_NAME": "idx_records_user_time",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 2,
+      "COLUMN_NAME": "recorded_at"
+    },
+    {
+      "TABLE_NAME": "health_records",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "INDEX_NAME": "idx_reminders_user",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "user_id"
+    },
+    {
+      "TABLE_NAME": "reminders",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "system_settings",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "users",
+      "INDEX_NAME": "email",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "email"
+    },
+    {
+      "TABLE_NAME": "users",
+      "INDEX_NAME": "idx_users_email",
+      "NON_UNIQUE": 1,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "email"
+    },
+    {
+      "TABLE_NAME": "users",
+      "INDEX_NAME": "PRIMARY",
+      "NON_UNIQUE": 0,
+      "SEQ_IN_INDEX": 1,
+      "COLUMN_NAME": "id"
+    }
+  ]
+}

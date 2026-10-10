@@ -1,0 +1,445 @@
+{
+  "checkedAt": "2026-10-10T08:49:06.419Z",
+  "readOnly": true,
+  "localConnection": true,
+  "session": {
+    "client": "utf8mb4",
+    "connection": "utf8mb4",
+    "results": "utf8mb4",
+    "database_charset": "utf8mb4",
+    "database_collation": "utf8mb4_unicode_ci"
+  },
+  "utf8RoundTrip": true,
+  "findings": [
+    {
+      "table": "ai_diagnoses",
+      "column": "id",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 0,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "ai_diagnoses",
+      "column": "summary",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 0,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "ai_diagnoses",
+      "column": "possible_conditions",
+      "charset": null,
+      "collation": null,
+      "total": 0,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "ai_diagnoses",
+      "column": "vital_analysis",
+      "charset": null,
+      "collation": null,
+      "total": 0,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "ai_diagnoses",
+      "column": "recommendations",
+      "charset": null,
+      "collation": null,
+      "total": 0,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "ai_diagnoses",
+      "column": "disclaimer",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 0,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "ai_diagnoses",
+      "column": "physician_notes",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 0,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "user_name",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "user_role",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "action",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "module",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "page",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "resource_type",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "resource_id",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "description",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "audit_logs",
+      "column": "metadata",
+      "charset": null,
+      "collation": null,
+      "total": 17,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "connected_devices",
+      "column": "id",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 2,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "connected_devices",
+      "column": "name",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 2,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "connected_devices",
+      "column": "model",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 2,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "connected_devices",
+      "column": "mac_address",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 2,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "connected_devices",
+      "column": "firmware_version",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 2,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "goals",
+      "column": "title",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "goals",
+      "column": "unit",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "health_records",
+      "column": "notes",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 5,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "health_records",
+      "column": "doctor_notes",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 5,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "reminders",
+      "column": "title",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 4,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "reminders",
+      "column": "time_of_day",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 4,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "system_settings",
+      "column": "selected_ai_model",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 1,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "full_name",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "address",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "occupation",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "blood_type",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "activity_level",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "chronic_conditions",
+      "charset": null,
+      "collation": null,
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "allergies",
+      "charset": null,
+      "collation": null,
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "current_medications",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "medical_notes",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "primary_doctor",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "hospital_clinic",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "emergency_contact_name",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "emergency_contact_relationship",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "emergency_contact_phone",
+      "charset": "utf8mb4",
+      "collation": "utf8mb4_unicode_ci",
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    },
+    {
+      "table": "users",
+      "column": "vital_alert_thresholds",
+      "charset": null,
+      "collation": null,
+      "total": 3,
+      "rowsWithQuestionMarks": 0,
+      "rowsWithReplacementCharacters": 0,
+      "knownSeedMatches": []
+    }
+  ]
+}

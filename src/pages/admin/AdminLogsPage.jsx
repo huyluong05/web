@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../../api/client";
@@ -30,6 +31,8 @@ import { Button } from "../../components/common/Button";
 import { motion, AnimatePresence } from "motion/react";
 import { useToast } from "../../context/ToastContext";
 export const AdminLogsPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const { success, error } = useToast();
   const [activeTab, setActiveTab] = useState("logs"); // Logs state
 const [logs, setLogs] = useState([]);
@@ -51,6 +54,8 @@ const [sessions, setSessions] = useState([]);
         search: searchQuery.trim() || undefined,
         limit: logLimit,
       });
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
       if (res.success && res.data) {
         setLogs(res.data.logs);
         setTotalLogs(res.data.total);
@@ -212,6 +217,7 @@ return () => clearInterval(interval);
       variants={containerVariants}
       className="flex flex-col flex-1 pb-12"
     >
+      <DataStatus error={loadError} onRetry={fetchLogs} />
       {/* Header */}
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -577,7 +583,7 @@ return () => clearInterval(interval);
                       <div className="flex items-start justify-between gap-2 mb-4">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-10 h-10 rounded bg-slate-50 text-slate-700 font-semibold text-sm flex items-center justify-center shrink-0 relative border border-slate-200">
-                            {sess.userName.charAt(0).toUpperCase()}
+                            {sess.userName?.charAt(0).toUpperCase() || 'U'}
                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white absolute -top-1 -right-1" />
                           </div>
                           <div className="min-w-0">

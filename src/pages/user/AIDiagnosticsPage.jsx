@@ -4,6 +4,9 @@ import { requestAIDiagnosis, fetchAIHistory, sendChatMessageToAI } from '../../s
 import { Sparkles, Brain, Activity, Heart, AlertTriangle, CheckCircle2, Clock, Code2, Stethoscope, ChevronDown, ChevronUp, RefreshCw, ShieldAlert, Flame, Salad, Moon, Plus, MessageSquare, Send, Bot, User as UserIcon, ShieldCheck, Check } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { motion, AnimatePresence } from 'motion/react';
+import { MEDICAL_SOURCES, MEDICAL_DISCLAIMER } from '../../data/medicalSources';
+import { useDataSync } from '../../hooks/useDataSync';
+import { HealthDataStatus } from '../../components/common/HealthDataStatus';
 
 const COMMON_SYMPTOMS = [
   'Đau đầu', 'Chóng mặt', 'Hoa mắt', 'Hồi hộp / Tim đập nhanh', 
@@ -30,10 +33,11 @@ export const AIDiagnosticsPage = () => {
   const [latestRecord, setLatestRecord] = useState(null);
   
   // Manual vitals override
-const [systolic, setSystolic] = useState(120);
-  const [diastolic, setDiastolic] = useState(80);
-  const [heartRate, setHeartRate] = useState(72);
-  const [weight, setWeight] = useState(68);
+const [systolic, setSystolic] = useState('');
+  const [diastolic, setDiastolic] = useState('');
+  const [heartRate, setHeartRate] = useState('');
+  const [weight, setWeight] = useState('');
+  const [current, setCurrent] = useState({});
   
   // Lifestyle context
 const [sleepHours, setSleepHours] = useState(7);
@@ -51,7 +55,7 @@ const [chatMessages, setChatMessages] = useState([
     {
       id: 'init-1',
       role: 'model',
-      text: 'Xin chào! Tôi là **Bác sĩ Trợ lý Y khoa VitalTrack AI** được tích hợp mô hình **Google Gemini (gemini-3.7-flash)**.\n\nTôi có thể giúp bạn giải đáp các chỉ số huyết áp, nhịp tim, dinh dưỡng tim mạch và tư vấn lối sống khoa học. Bạn đang quan tâm đến vấn đề sức khỏe nào hôm nay?',
+      text: 'Xin chào! Tôi là công cụ hỗ trợ giải thích chỉ số VitalTrack. Kết quả chỉ mang tính tham khảo, không thay thế bác sĩ. Hãy chọn chỉ số thực tế và xem thời điểm đo trước khi phân tích.',
       timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -59,22 +63,18 @@ const [chatMessages, setChatMessages] = useState([
   const [chatLoading, setChatLoading] = useState(false);
   const chatBottomRef = useRef(null);
 
+  const fetchVitals = async () => {
+    const res = await healthApi.getLatest();
+    if (!res.success) { setErrorMessage(res.message); return; }
+    const cur = res.data.current ?? {};
+    setCurrent(cur);
+    setLatestRecord(res.data.latest ? { ...res.data.latest, weight: cur.weight?.value ?? null, systolic: cur.blood_pressure?.value ?? null, diastolic: cur.blood_pressure?.diastolic ?? null, heart_rate: cur.heart_rate?.value ?? null } : null);
+  };
   useEffect(() => {
-    // Load latest real health telemetry record
-    healthApi.getAll('all').then((res) => {
-      if (res.success && res.data && res.data.length > 0) {
-        const sorted = [...res.data].sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime());
-        const top = sorted[0];
-        setLatestRecord(top);
-        setSystolic(top.systolic);
-        setDiastolic(top.diastolic);
-        setHeartRate(top.heart_rate);
-        setWeight(top.weight);
-      }
-    });
-    // Load AI consultation history
-    fetchAIHistory().then((data) => setHistory(data));
+    fetchVitals();
+    fetchAIHistory().then(setHistory).catch(err => setErrorMessage(err.message));
   }, []);
+  useDataSync(fetchVitals, ['health'], true);
 
   useEffect(() => {
     if (activeTab === 'chat') {
@@ -106,11 +106,12 @@ const [chatMessages, setChatMessages] = useState([
       const payload = {
         symptoms: selectedSymptoms,
         notes: notes.trim() || undefined,
+        use_database: useRealVitals,
         recentVitals: {
-          systolic: useRealVitals && latestRecord ? latestRecord.systolic : systolic,
-          diastolic: useRealVitals && latestRecord ? latestRecord.diastolic : diastolic,
-          heart_rate: useRealVitals && latestRecord ? latestRecord.heart_rate : heartRate,
-          weight: useRealVitals && latestRecord ? latestRecord.weight : weight,
+          systolic: systolic === '' ? null : Number(systolic),
+          diastolic: diastolic === '' ? null : Number(diastolic),
+          heart_rate: heartRate === '' ? null : Number(heartRate),
+          weight: weight === '' ? null : Number(weight),
         },
         lifestyle: { sleepHours, stressLevel, activityLevel, },
       };
@@ -119,7 +120,7 @@ const [chatMessages, setChatMessages] = useState([
       setResult(res);
       setHistory((prev) => [res, ...prev]);
     } catch (err) {
-      setErrorMessage(err.message || 'Không thể thực hiện chẩn đoán AI');
+      setErrorMessage(err.message || 'Không thể thực hiện phân tích AI');
     } finally {
       setLoading(false);
     }
@@ -170,21 +171,21 @@ const [chatMessages, setChatMessages] = useState([
         return (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-rose-50 text-rose-700 border border-rose-200 font-semibold text-[11px] uppercase tracking-wider">
             <ShieldAlert className="w-3.5 h-3.5 text-rose-500 animate-pulse"/>
-            <span>Nguy cơ Cao ({score}/100)</span>
+            <span>Cần hỗ trợ y tế</span>
           </div>
         );
       case 'moderate':
         return (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-[11px] uppercase tracking-wider">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-500"/>
-            <span>Nguy cơ Vừa ({score}/100)</span>
+            <span>Cần theo dõi thêm</span>
           </div>
         );
       default:
         return (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[11px] uppercase tracking-wider">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500"/>
-            <span>Nguy cơ Thấp ({score}/100)</span>
+            <span>Chưa phát hiện ngưỡng cảnh báo trong dữ liệu đã có</span>
           </div>
         );
     }
@@ -210,7 +211,7 @@ const [chatMessages, setChatMessages] = useState([
             <span>Trợ lý Y khoa AI</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-            AI Chẩn Đoán & Tư Vấn
+            AI Phân Tích & Giải Thích Chỉ Số
           </h1>
           <p className="text-sm text-slate-500 font-medium mt-1.5 max-w-2xl">
             Tích hợp Google Gemini AI để phân tích sinh trắc y khoa và tư vấn sức khỏe trực tuyến
@@ -219,6 +220,9 @@ const [chatMessages, setChatMessages] = useState([
       </header>
 
       {/* Tabs Navigation */}
+      <details className="mb-4 p-4 border border-amber-200 rounded-xl bg-amber-50 text-sm text-slate-700"><summary className="cursor-pointer font-semibold">Giới hạn và nguồn tham khảo đã xác minh</summary><p className="mt-2">{MEDICAL_DISCLAIMER}</p><p className="mt-2">Chưa có đánh giá độ chính xác thực nghiệm. Mức cảnh báo không phải xác suất mắc bệnh; chế độ quy tắc và giải thích Gemini được ghi rõ trong kết quả.</p><ul className="mt-2 space-y-2">{MEDICAL_SOURCES.map(source => <li key={source.url}><a className="underline" href={source.url} target="_blank" rel="noreferrer">{source.organization} — {source.title}</a><p className="text-xs">Tài liệu cập nhật: {source.updated}; xác minh: {source.verified}.</p></li>)}</ul></details>
+      <HealthDataStatus current={current} />
+      {result && <p className="my-3 text-sm text-slate-600">Chế độ: {result.engine === 'reference-rules' ? 'Đối chiếu quy tắc tham chiếu' : 'Giải thích Gemini kết hợp quy tắc tham chiếu'}. {result.aiUnavailable && 'AI tạm không khả dụng; kết quả này dùng quy tắc tham chiếu.'} {result.limitations}</p>}
       <div className="flex items-center gap-2 mb-6 border-b border-slate-200 pb-2 overflow-x-auto custom-scrollbar">
         <button
           onClick={() => setActiveTab('assessment')}
@@ -238,7 +242,7 @@ const [chatMessages, setChatMessages] = useState([
               : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent'
           }`}
         >
-          <MessageSquare className="w-4 h-4 shrink-0"/> Hỏi đáp Bác sĩ AI
+          <MessageSquare className="w-4 h-4 shrink-0"/> Hỏi đáp Trợ lý chỉ số
         </button>
       </div>
 
@@ -423,7 +427,7 @@ const [chatMessages, setChatMessages] = useState([
                 {loading ? (
                   <><RefreshCw className="w-4 h-4 animate-spin"/><span>Đang phân tích...</span></>
                 ) : (
-                  <><Sparkles className="w-4 h-4"/><span>Chẩn đoán AI</span></>
+                  <><Sparkles className="w-4 h-4"/><span>Phân tích AI</span></>
                 )}
               </Button>
             </div>
@@ -464,7 +468,7 @@ const [chatMessages, setChatMessages] = useState([
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="font-bold text-sm text-slate-800">{cond.name}</span>
                             <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-bold text-[10px] uppercase tracking-wider">
-                              Tỷ lệ: {cond.probability}
+                              Chưa có ước tính xác suất được kiểm chứng
                             </span>
                           </div>
                           <p className="text-xs text-slate-600 leading-relaxed font-medium">{cond.description}</p>
@@ -546,9 +550,9 @@ const [chatMessages, setChatMessages] = useState([
                 <div className="w-16 h-16 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center mb-5 border border-indigo-100">
                   <Brain className="w-8 h-8"/>
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có kết quả chẩn đoán</h3>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Chưa có kết quả phân tích</h3>
                 <p className="text-sm text-slate-500 max-w-sm mx-auto leading-relaxed mb-6">
-                  Chọn các triệu chứng đang gặp phải ở bảng bên trái và nhấn <b className="text-slate-700">"Chẩn đoán AI"</b>.
+                  Chọn các triệu chứng đang gặp phải ở bảng bên trái và nhấn <b className="text-slate-700">"Phân tích AI"</b>.
                 </p>
               </div>
             )}
@@ -593,7 +597,7 @@ const [chatMessages, setChatMessages] = useState([
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-sm text-slate-900 truncate">Bác sĩ AI</h3>
+                  <h3 className="font-bold text-sm text-slate-900 truncate">Trợ lý chỉ số</h3>
                   <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider shrink-0 border border-blue-200">
                     Gemini 3.7
                   </span>

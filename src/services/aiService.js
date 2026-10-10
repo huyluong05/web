@@ -37,12 +37,12 @@ export async function fetchAIHistory() {
   if (response.success && response.data) {
     return response.data;
   }
-  return [];
+  throw new Error(response.message || 'Không thể tải lịch sử phân tích AI.');
 }
 export async function sendChatMessageToAI(message, history) {
   const response = await aiApi.chatWithDoctor({ message, history });
   if (!response.success || !response.data) {
-    throw new Error(response.message || "Không thể kết nối với Bác sĩ AI.");
+    throw new Error(response.message || "Không thể kết nối với công cụ giải thích AI.");
   }
   return response.data;
 }

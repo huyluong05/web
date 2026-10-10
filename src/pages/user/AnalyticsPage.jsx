@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { UserHeader } from "../../components/layout/UserHeader";
 import { HealthChart } from "../../components/charts/HealthChart";
 import { ClinicalAnalyticsChart } from "../../components/charts/ClinicalAnalyticsChart";
@@ -13,30 +13,38 @@ import {
   PieChart,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useDataSync } from '../../hooks/useDataSync';
+import { DataStatus } from '../../components/common/DataStatus';
 
 export const AnalyticsPage = () => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("30d");
   const [activeTab, setActiveTab] = useState("clinical");
+  const [loadError, setLoadError] = useState('');
 
+  const loadVersion = useRef(0);
   const fetchRecords = async () => {
+    const version = ++loadVersion.current;
     try {
       setLoading(true);
       const res = await healthApi.getAll(timeRange);
+      if (version !== loadVersion.current) return;
+      setLoadError(res.success ? '' : res.message);
       if (res.success && res.data) {
         setRecords(res.data);
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchRecords();
   }, [timeRange]);
+  useDataSync(fetchRecords, ['health'], true);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -66,6 +74,7 @@ export const AnalyticsPage = () => {
       />
 
       {/* Filter and Switcher Bar */}
+      <DataStatus loading={loading} error={loadError} onRetry={fetchRecords} />
       <motion.div
         variants={itemVariants}
         className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 mb-6 bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm"

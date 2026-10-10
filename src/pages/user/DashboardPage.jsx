@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { UserHeader } from "../../components/layout/UserHeader";
 import { HealthChart } from "../../components/charts/HealthChart";
 import { RecordMetricModal } from "../../components/forms/RecordMetricModal";
@@ -20,6 +20,9 @@ import {
 import { Link } from "react-router-dom";
 import { useToast } from "../../context/ToastContext";
 import { motion } from "motion/react";
+import { useDataSync } from '../../hooks/useDataSync';
+import { DataStatus } from '../../components/common/DataStatus';
+import { HealthDataStatus } from '../../components/common/HealthDataStatus';
 
 export const DashboardPage = () => {
   const { success } = useToast();
@@ -31,8 +34,11 @@ export const DashboardPage = () => {
   const [reminders, setReminders] = useState([]);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
   const [timeRange, setTimeRange] = useState("30d");
+  const [current, setCurrent] = useState({}), [loadError, setLoadError] = useState('');
 
+  const loadVersion = useRef(0);
   const fetchData = async () => {
+    const version = ++loadVersion.current;
     try {
       setLoading(true);
       const [recordsRes, latestRes, goalsRes, remindersRes] = await Promise.all(
@@ -43,10 +49,14 @@ export const DashboardPage = () => {
           remindersApi.getAll(),
         ],
       );
+      if (version !== loadVersion.current) return;
+      setLoadError([recordsRes, latestRes, goalsRes, remindersRes].filter(r => !r.success).map(r => r.message).join(' · '));
       if (recordsRes.success && recordsRes.data) setRecords(recordsRes.data);
       if (latestRes.success && latestRes.data) {
-        setLatestRecord(latestRes.data.latest);
-        setPreviousRecord(latestRes.data.previous);
+        const cur = latestRes.data.current ?? {};
+        setCurrent(cur);
+        setLatestRecord(latestRes.data.latest ? { weight: cur.weight?.value ?? null, systolic: cur.blood_pressure?.value ?? null, diastolic: cur.blood_pressure?.diastolic ?? null, heart_rate: cur.heart_rate?.value ?? null } : null);
+        setPreviousRecord({ weight: latestRes.data.previous_by_metric?.weight ?? null, heart_rate: latestRes.data.previous_by_metric?.heart_rate ?? null });
       }
       if (goalsRes.success && goalsRes.data) setGoals(goalsRes.data);
       if (remindersRes.success && remindersRes.data)
@@ -54,13 +64,14 @@ export const DashboardPage = () => {
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
     } finally {
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchData();
   }, [timeRange]);
+  useDataSync(fetchData, ['health', 'goals', 'reminders', 'profile'], true);
 
   const handleToggleReminder = async (rem) => {
     const updatedStatus = !rem.is_active;
@@ -77,11 +88,11 @@ export const DashboardPage = () => {
 
   // Metric Deltas calculation
 const weightDiff =
-    latestRecord && previousRecord
+    latestRecord?.weight != null && previousRecord?.weight != null
       ? latestRecord.weight - previousRecord.weight
       : 0;
   const hrDiff =
-    latestRecord && previousRecord
+    latestRecord?.heart_rate != null && previousRecord?.heart_rate != null
       ? latestRecord.heart_rate - previousRecord.heart_rate
       : 0;
 
@@ -113,6 +124,8 @@ const weightDiff =
       />
 
       {/* Top 3 Metric Highlight Cards */}
+      <DataStatus loading={loading} error={loadError} onRetry={fetchData} />
+      <HealthDataStatus current={current} />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Card 1: Current Weight */}
         <motion.div
@@ -129,7 +142,7 @@ const weightDiff =
           </div>
           <div className="flex items-baseline gap-1.5 mt-auto">
             <span className="text-4xl font-bold text-slate-900 tracking-tight">
-              {latestRecord ? latestRecord.weight : "--"}
+              {latestRecord?.weight ?? "--"}
             </span>
             <span className="text-slate-500 font-semibold text-sm">kg</span>
           </div>
@@ -163,26 +176,26 @@ const weightDiff =
               <HeartPulse className="w-5 h-5 text-rose-500" />
             </div>
             <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-              Huyết áp
+              Cặp huyết áp cùng lần đo
             </p>
           </div>
           <div className="flex items-baseline gap-1.5 mt-auto">
             <span className="text-4xl font-bold text-slate-900 tracking-tight">
-              {latestRecord
+              {latestRecord?.systolic != null
                 ? `${latestRecord.systolic}/${latestRecord.diastolic}`
                 : "--/--"}
             </span>
             <span className="text-slate-500 font-semibold text-sm">mmHg</span>
           </div>
           <div className="mt-4 flex items-center text-[13px] font-medium">
-            {latestRecord &&
-            latestRecord.systolic <= 120 &&
-            latestRecord.diastolic <= 80 ? (
+            {latestRecord?.systolic != null && latestRecord?.diastolic != null &&
+            latestRecord.systolic < 120 &&
+            latestRecord.diastolic < 80 ? (
               <span className="text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100/50">
                 <Check className="w-4 h-4" />
                 Mức tối ưu
               </span>
-            ) : latestRecord ? (
+            ) : latestRecord?.systolic != null ? (
               <span className="text-amber-600 flex items-center gap-1.5 bg-amber-50 px-2 py-1 rounded-md border border-amber-100/50">
                 <Activity className="w-4 h-4" />
                 Cần theo dõi
@@ -208,7 +221,7 @@ const weightDiff =
           </div>
           <div className="flex items-baseline gap-1.5 mt-auto">
             <span className="text-4xl font-bold text-slate-900 tracking-tight">
-              {latestRecord ? latestRecord.heart_rate : "--"}
+              {latestRecord?.heart_rate ?? "--"}
             </span>
             <span className="text-slate-500 font-semibold text-sm">bpm</span>
           </div>
@@ -256,7 +269,7 @@ const weightDiff =
                 </span>
               </div>
               <p className="text-sm text-slate-400 font-medium">
-                Phân tích dữ liệu & dự báo nguy cơ
+                Giải thích chỉ số theo nguồn tham chiếu
               </p>
             </div>
           </div>
@@ -277,11 +290,11 @@ const weightDiff =
                   Thiết bị & Kết nối
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-slate-100 text-slate-500 border border-slate-200/60">
-                  Tự động
+                  Đăng ký
                 </span>
               </div>
               <p className="text-sm text-slate-500 font-medium">
-                Đồng bộ số liệu từ Apple Watch & IoT
+                Quản lý thiết bị và hướng dẫn nhập số đo
               </p>
             </div>
           </div>

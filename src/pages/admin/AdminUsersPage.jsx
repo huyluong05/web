@@ -1,3 +1,4 @@
+import { DataStatus } from '../../components/common/DataStatus';
 import React, { useState, useEffect } from "react";
 import { adminApi } from "../../api/client";
 import { useToast } from "../../context/ToastContext";
@@ -34,6 +35,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 export const AdminUsersPage = () => {
+  const [loadError, setLoadError] = useState('');
+
   const { success, error } = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,26 +44,15 @@ export const AdminUsersPage = () => {
 const [dossierUserId, setDossierUserId] = useState(null);
   const [dossierData, setDossierData] = useState(null);
   const [loadingDossier, setLoadingDossier] = useState(false);
+  const [dossierError, setDossierError] = useState('');
   const [dossierTab, setDossierTab] = useState("profile"); // Create User Modal
 const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [showCreatePassword, setShowCreatePassword] = useState(true);
   const [copiedField, setCopiedField] = useState(null); // Newly Created User Handover Credentials Modal
 const [createdCredentials, setCreatedCredentials] = useState(null);
   const generateRandomPassword = () => {
-    const words = [
-      "Vital",
-      "Khoe",
-      "Care",
-      "Health",
-      "TamAn",
-      "SongKhoe",
-      "YeuThuong",
-    ];
-    const word = words[Math.floor(Math.random() * words.length)];
-    const num = Math.floor(1000 + Math.random() * 9000);
-    const symbols = ["@", "#", "$", "!"];
-    const sym = symbols[Math.floor(Math.random() * symbols.length)];
-    return `${word}${sym}${num}`;
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$!';
+    return Array.from(crypto.getRandomValues(new Uint8Array(18)), n => chars[n % chars.length]).join('');
   };
   const copyToClipboard = async (text, fieldKey) => {
     try {
@@ -123,20 +115,20 @@ thông tin đăng nhập vào hệ thống: - Họ và tên: ${creds.full_name}
   const [createForm, setCreateForm] = useState({
     full_name: "",
     email: "",
-    password: "Vital@2026",
+    password: generateRandomPassword(),
     role: "user",
     phone_number: "",
-    gender: "male",
-    date_of_birth: "1985-05-15",
-    blood_type: "O+",
-    height_cm: 170,
-    base_weight_kg: 68,
+    gender: "other",
+    date_of_birth: "",
+    blood_type: "unknown",
+    height_cm: null,
+    base_weight_kg: null,
     activity_level: "moderate",
-    chronic_conditions: ["Tăng huyết áp"],
+    chronic_conditions: [],
     allergies: [],
-    current_medications: "Amlodipine 5mg (1 viên/sáng)",
+    current_medications: "",
     emergency_contact_name: "",
-    emergency_contact_relationship: "Vợ/Chồng",
+    emergency_contact_relationship: "",
     emergency_contact_phone: "",
   }); // Edit User Modal
 const [editingUser, setEditingUser] = useState(null);
@@ -149,6 +141,9 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
     try {
       setLoading(true);
       const res = await adminApi.getUsers(search);
+      if (!res.success) { setLoadError(res.message); return; }
+      setLoadError('');
+      if (!Array.isArray(res.data)) { setLoadError('Invalid API response: expected an array.'); return; }
       if (res.success && res.data) {
         setUsers(res.data);
       }
@@ -163,17 +158,21 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
     fetchUsers();
   }, [search]);
   const handleOpenDossier = async (userId) => {
+    setDossierData(null); setDossierError('');
     setDossierUserId(userId);
     setDossierTab("profile");
     try {
       setLoadingDossier(true);
       const res = await adminApi.getUserDossier(userId);
       if (res.success && res.data) {
+        if (!res.data.user || !res.data.stats || !['health_records', 'aiHistory', 'goals', 'devices'].every(key => Array.isArray(res.data[key]))) { setDossierError('Dữ liệu hồ sơ từ máy chủ chưa đầy đủ. Vui lòng thử lại.'); return; }
         setDossierData(res.data);
       } else {
+        setDossierError(res.message || 'Không thể tải hồ sơ bệnh nhân.');
         error(res.message || "Lỗi tải hồ sơ y bạ");
       }
     } catch (err) {
+      setDossierError(err.message || 'Không thể tải hồ sơ bệnh nhân.');
       error(err.message || "Lỗi tải hồ sơ");
     } finally {
       setLoadingDossier(false);
@@ -208,17 +207,17 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
           password: generateRandomPassword(),
           role: "user",
           phone_number: "",
-          gender: "male",
-          date_of_birth: "1985-05-15",
-          blood_type: "O+",
-          height_cm: 170,
-          base_weight_kg: 68,
+          gender: "other",
+          date_of_birth: "",
+          blood_type: "unknown",
+          height_cm: null,
+          base_weight_kg: null,
           activity_level: "moderate",
-          chronic_conditions: ["Tăng huyết áp"],
+          chronic_conditions: [],
           allergies: [],
-          current_medications: "Amlodipine 5mg (1 viên/sáng)",
+          current_medications: "",
           emergency_contact_name: "",
-          emergency_contact_relationship: "Vợ/Chồng",
+          emergency_contact_relationship: "",
           emergency_contact_phone: "",
         });
         fetchUsers();
@@ -229,7 +228,12 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
       error(err.message || "Lỗi tạo tài khoản");
     }
   };
-  const handleOpenEdit = (user) => {
+  const handleOpenEdit = async (user) => {
+    // The list intentionally contains summary fields only. Never initialize an
+    // edit form from it: that would clear medical fields absent from the list.
+    const response = await adminApi.getUserDossier(user.id);
+    if (!response.success || !response.data?.user) { error(response.message || 'Không thể tải hồ sơ đầy đủ để chỉnh sửa.'); return; }
+    user = response.data.user;
     setEditingUser(user);
     setEditForm({
       full_name: user.full_name,
@@ -256,16 +260,16 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
         lowDiastolic: 60,
         highHeartRate: 100,
         lowHeartRate: 50,
-        targetWeight: user.target_weight_kg || 65,
+        targetWeight: user.target_weight_kg ?? null,
         sosAlertEnabled: true,
       },
       phone_number: user.phone_number || "",
-      gender: user.gender || "male",
-      date_of_birth: user.date_of_birth || "",
-      blood_type: user.blood_type || "O+",
-      height_cm: user.height_cm || 170,
-      base_weight_kg: user.base_weight_kg || 68,
-      target_weight_kg: user.target_weight_kg || 65,
+      gender: user.gender || "other",
+      date_of_birth: user.date_of_birth ? String(user.date_of_birth).slice(0, 10) : "",
+      blood_type: user.blood_type || "unknown",
+      height_cm: user.height_cm ?? null,
+      base_weight_kg: user.base_weight_kg ?? null,
+      target_weight_kg: user.target_weight_kg ?? null,
       activity_level: user.activity_level || "moderate",
       occupation: user.occupation || "",
       address: user.address || "",
@@ -301,7 +305,10 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
   const handleResetPassword = async () => {
     if (!resetPassUser) return;
     try {
-      const res = await adminApi.resetUserPassword(resetPassUser.id);
+      const bytes = crypto.getRandomValues(new Uint8Array(18));
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#';
+      const password = Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+      const res = await adminApi.resetUserPassword(resetPassUser.id, password);
       if (res.success && res.data) {
         setTempPasswordGenerated(res.data.temporaryPassword || null);
         success("Đã cấp lại mật khẩu tạm thời thành công!");
@@ -382,6 +389,7 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
   };
   return (
     <motion.div initial="hidden" animate="visible" variants={containerVariants} className="flex flex-col flex-1 pb-8">
+      <DataStatus error={loadError} onRetry={fetchUsers} />
       {/* Header */}
       <header className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -465,7 +473,7 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded flex items-center justify-center font-bold text-sm bg-slate-100 text-slate-700 shrink-0">
-                            {user.full_name.charAt(0).toUpperCase()}
+                            {user.full_name?.charAt(0).toUpperCase() || 'U'}
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-900 truncate">
@@ -568,11 +576,11 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
           setDossierUserId(null);
           setDossierData(null);
         }}
-        title={`Hồ Sơ Y Bạ Bệnh Nhân: ${dossierData?.user.full_name || "Đang tải..."}`}
-        subtitle={`Email: ${dossierData?.user.email} | ID: #${dossierData?.user.id}`}
+        title={`Hồ Sơ Y Bạ Bệnh Nhân: ${dossierData?.user?.full_name || "Đang tải..."}`}
+        subtitle={dossierData ? `Email: ${dossierData.user.email} | ID: #${dossierData.user.id}` : undefined}
         maxWidth="lg"
       >
-        {loadingDossier || !dossierData ? (
+        {dossierError ? <DataStatus error={dossierError} onRetry={() => handleOpenDossier(dossierUserId)} /> : loadingDossier || !dossierData ? (
           <div className="py-12 text-center text-slate-500">
             <RefreshCw className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
             Đang tải hồ sơ y bạ...
@@ -609,13 +617,13 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">HA Trung bình</p>
                     <p className="text-lg font-bold text-slate-900 tracking-tight">
-                      {dossierData.stats.avgSystolic}/{dossierData.stats.avgDiastolic} <span className="text-[10px] text-slate-500 font-medium">mmHg</span>
+                      {dossierData.stats.avgSystolic ?? '--'}/{dossierData.stats.avgDiastolic ?? '--'} <span className="text-[10px] text-slate-500 font-medium">mmHg</span>
                     </p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nhịp tim TB</p>
                     <p className="text-lg font-bold text-slate-900 tracking-tight">
-                      {dossierData.stats.avgHeartRate} <span className="text-[10px] text-slate-500 font-medium">bpm</span>
+                      {dossierData.stats.avgHeartRate ?? '--'} <span className="text-[10px] text-slate-500 font-medium">bpm</span>
                     </p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -627,7 +635,7 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                   <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Cân nặng</p>
                     <p className="text-lg font-bold text-slate-900 tracking-tight">
-                      {dossierData.stats.lastWeight} <span className="text-[10px] text-slate-500 font-medium">kg</span>
+                      {dossierData.stats.lastWeight ?? '--'} <span className="text-[10px] text-slate-500 font-medium">kg</span>
                     </p>
                   </div>
                 </div>
@@ -754,7 +762,7 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                         </span>
                       </div>
                       <p className="text-[10px] font-medium text-slate-500 flex items-center gap-1">
-                        <Bot className="w-3 h-3" /> Gemini AI • {new Date(ai.createdAt).toLocaleString("vi-VN")}
+                        <Bot className="w-3 h-3" /> {ai.engine === 'reference-rules' ? 'Đối chiếu tham chiếu' : ai.engine === 'gemini-with-reference-rules' ? 'Giải thích Gemini + quy tắc' : 'Phân tích lịch sử — chưa rõ phương thức'} • {new Date(ai.createdAt).toLocaleString("vi-VN")}
                       </p>
                     </div>
                   ))
@@ -1011,6 +1019,7 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                 }
                 className="w-full bg-white border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-md px-3 py-2 text-sm font-medium transition-all cursor-pointer"
               >
+                <option value="unknown">Chưa xác định</option>
                 {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((b) => (
                   <option key={b} value={b}>{b}</option>
                 ))}
@@ -1020,25 +1029,25 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
               <label className="text-xs font-semibold text-slate-700 block mb-1.5">Chiều cao (cm)</label>
               <input
                 type="number"
-                value={createForm.height_cm}
+                value={createForm.height_cm ?? ''}
                 onChange={(e) =>
                   setCreateForm({
                     ...createForm,
-                    height_cm: Number(e.target.value),
+                    height_cm: e.target.value === '' ? null : Number(e.target.value),
                   })
                 }
                 className="w-full bg-white border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-md px-3 py-2 text-sm transition-all"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">Cân nặng (kg)</label>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">Cân nặng ban đầu (kg)</label>
               <input
                 type="number"
-                value={createForm.base_weight_kg}
+                value={createForm.base_weight_kg ?? ''}
                 onChange={(e) =>
                   setCreateForm({
                     ...createForm,
-                    base_weight_kg: Number(e.target.value),
+                    base_weight_kg: e.target.value === '' ? null : Number(e.target.value),
                   })
                 }
                 className="w-full bg-white border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-md px-3 py-2 text-sm transition-all"
@@ -1284,11 +1293,11 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                 </label>
                 <input
                   type="number"
-                  value={editForm.height_cm || 170}
+                  value={editForm.height_cm ?? ''}
                   onChange={(e) =>
                     setEditForm({
                       ...editForm,
-                      height_cm: Number(e.target.value),
+                      height_cm: e.target.value === '' ? null : Number(e.target.value),
                     })
                   }
                   className="w-full bg-white border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-md px-3 py-2 text-sm transition-all"
@@ -1296,15 +1305,15 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-                  Cân nặng (kg)
+                  Cân nặng ban đầu (kg)
                 </label>
                 <input
                   type="number"
-                  value={editForm.base_weight_kg || 68}
+                  value={editForm.base_weight_kg ?? ''}
                   onChange={(e) =>
                     setEditForm({
                       ...editForm,
-                      base_weight_kg: Number(e.target.value),
+                      base_weight_kg: e.target.value === '' ? null : Number(e.target.value),
                     })
                   }
                   className="w-full bg-white border border-slate-200 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-md px-3 py-2 text-sm transition-all"
@@ -1354,10 +1363,14 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                     <Shield className="w-4 h-4 text-slate-600" /> Chức Danh & Phân Quyền
                   </p>
                   <p className="text-xs text-slate-500">
-                    Xác lập vai trò và phạm vi quyền hạn
+                    Quyền đang áp dụng trên máy chủ: Admin hoặc User. Chức danh và ma trận chi tiết chưa có cột lưu trong schema hiện tại.
                   </p>
                 </div>
+                <select aria-label="Vai trò tài khoản" value={editForm.role || 'user'} onChange={e => setEditForm({ ...editForm, role: e.target.value })} className="border border-slate-200 rounded-md px-3 py-2 text-sm">
+                  <option value="user">User — Người dùng</option><option value="admin">Admin — Quản trị</option>
+                </select>
                 <select
+                  disabled title="Chức danh chi tiết chưa được backend lưu hoặc thực thi"
                   value={editForm.clinical_title || "patient"}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -1411,6 +1424,7 @@ const [statusConfirmUser, setStatusConfirmUser] = useState(null);
                     >
                       <input
                         type="checkbox"
+                        disabled title="Máy chủ hiện phân quyền theo Admin/User"
                         checked={!!editForm.custom_permissions?.[perm.key]}
                         onChange={(e) => {
                           setEditForm({

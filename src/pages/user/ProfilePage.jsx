@@ -4,7 +4,11 @@ import { Input } from "../../components/common/Input";
 import { Button } from "../../components/common/Button";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { authApi } from "../../api/client";
+import { authApi, healthApi } from "../../api/client";
+import { Link } from 'react-router-dom';
+import { HealthDataStatus } from '../../components/common/HealthDataStatus';
+import { DataStatus } from '../../components/common/DataStatus';
+import { useDataSync } from '../../hooks/useDataSync';
 import {
   User, Lock, LogOut, ShieldCheck, Mail, Calendar, Phone, MapPin,
   Briefcase, Activity, Heart, AlertTriangle, CheckCircle2, Save,
@@ -34,15 +38,15 @@ export const ProfilePage = () => {
 const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [gender, setGender] = useState("male");
+  const [gender, setGender] = useState("other");
   const [address, setAddress] = useState("");
   const [occupation, setOccupation] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   
   // Tab 2
-const [heightCm, setHeightCm] = useState("170");
-  const [baseWeightKg, setBaseWeightKg] = useState("68");
-  const [targetWeightKg, setTargetWeightKg] = useState("65");
+const [heightCm, setHeightCm] = useState("");
+  const [baseWeightKg, setBaseWeightKg] = useState("");
+  const [targetWeightKg, setTargetWeightKg] = useState("");
   const [bloodType, setBloodType] = useState("unknown");
   const [activityLevel, setActivityLevel] = useState("moderate");
   
@@ -75,20 +79,24 @@ const [oldPassword, setOldPassword] = useState("");
   
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [currentHealth, setCurrentHealth] = useState({}), [healthError, setHealthError] = useState('');
+  const fetchCurrentHealth = async () => { const res = await healthApi.getLatest(); if (res.success) { setCurrentHealth(res.data.current ?? {}); setHealthError(''); } else setHealthError(res.message); };
+  useEffect(() => { fetchCurrentHealth(); }, []);
+  useDataSync(fetchCurrentHealth, ['health'], true);
 
   useEffect(() => {
     if (user) {
       setFullName(user.full_name || "");
       setPhoneNumber(user.phone_number || "");
-      setDateOfBirth(user.date_of_birth || "");
-      setGender(user.gender || "male");
+      setDateOfBirth(user.date_of_birth ? String(user.date_of_birth).slice(0, 10) : "");
+      setGender(user.gender || "other");
       setAddress(user.address || "");
       setOccupation(user.occupation || "");
       setAvatarUrl(user.avatar_url || "");
       
-      setHeightCm(user.height_cm ? String(user.height_cm) : "170");
-      setBaseWeightKg(user.base_weight_kg ? String(user.base_weight_kg) : "68");
-      setTargetWeightKg(user.target_weight_kg ? String(user.target_weight_kg) : "65");
+      setHeightCm(user.height_cm != null ? String(user.height_cm) : "");
+      setBaseWeightKg(user.base_weight_kg != null ? String(user.base_weight_kg) : "");
+      setTargetWeightKg(user.target_weight_kg != null ? String(user.target_weight_kg) : "");
       setBloodType(user.blood_type || "unknown");
       setActivityLevel(user.activity_level || "moderate");
       
@@ -118,13 +126,14 @@ const [oldPassword, setOldPassword] = useState("");
 
   const calculatedBiometrics = useMemo(() => {
     const height = parseFloat(heightCm) || 0;
-    const weight = parseFloat(baseWeightKg) || 0;
+    const weight = currentHealth.weight?.value ?? 0;
     
     let age = 0;
     if (dateOfBirth) {
       const birth = new Date(dateOfBirth);
-      const diff = Date.now() - birth.getTime();
-      age = Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+      const today = new Date();
+      age = today.getFullYear() - birth.getUTCFullYear();
+      if (today.getMonth() < birth.getUTCMonth() || (today.getMonth() === birth.getUTCMonth() && today.getDate() < birth.getUTCDate())) age--;
     }
     
     let bmi = 0;
@@ -135,35 +144,34 @@ const [oldPassword, setOldPassword] = useState("");
       const heightInMeters = height / 100;
       bmi = parseFloat((weight / (heightInMeters * heightInMeters)).toFixed(1));
       
-      if (bmi < 18.5) {
+      if (!dateOfBirth || !Number.isFinite(age) || age < 18) {
+        bmiCategory = 'Cần đánh giá theo tuổi; chưa phân nhóm người lớn';
+      } else if (bmi < 18.5) {
         bmiCategory = "Thiếu cân / Thể trạng gầy";
         bmiColor = "text-sky-700 bg-sky-50 border-sky-200";
-      } else if (bmi <= 22.9) {
-        bmiCategory = "Thể trạng chuẩn (Lý tưởng)";
+      } else if (bmi < 25) {
+        bmiCategory = "Khoảng BMI tham chiếu WHO";
         bmiColor = "text-emerald-700 bg-emerald-50 border-emerald-200";
-      } else if (bmi <= 24.9) {
-        bmiCategory = "Tiền béo phì (Thừa cân)";
-        bmiColor = "text-orange-700 bg-orange-50 border-orange-200";
-      } else if (bmi <= 29.9) {
-        bmiCategory = "Béo phì độ 1";
+      } else if (bmi < 30) {
+        bmiCategory = "Khoảng BMI thừa cân theo WHO";
         bmiColor = "text-orange-700 bg-orange-50 border-orange-200";
       } else {
-        bmiCategory = "Béo phì độ 2 (Nguy cơ cao)";
+        bmiCategory = "Khoảng BMI béo phì theo WHO";
         bmiColor = "text-rose-700 bg-rose-50 border-rose-200";
       }
     }
     
     let minIdealWeight = 0;
     let maxIdealWeight = 0;
-    if (height > 0) {
+    if (height > 0 && dateOfBirth && age >= 18) {
       const hm = height / 100;
       minIdealWeight = Math.round(18.5 * hm * hm * 10) / 10;
-      maxIdealWeight = Math.round(22.9 * hm * hm * 10) / 10;
+      maxIdealWeight = Math.round(24.9 * hm * hm * 10) / 10;
     }
     
     let bmr = 0;
-    if (height > 0 && weight > 0) {
-      const ageVal = age > 0 ? age : 30;
+    if (height > 0 && weight > 0 && dateOfBirth && age >= 19 && age <= 78 && ['male', 'female'].includes(gender)) {
+      const ageVal = age;
       if (gender === "female") {
         bmr = Math.round(10 * weight + 6.25 * height - 5 * ageVal - 161);
       } else {
@@ -172,7 +180,7 @@ const [oldPassword, setOldPassword] = useState("");
     }
     
     return { age, bmi, bmiCategory, bmiColor, minIdealWeight, maxIdealWeight, bmr };
-  }, [heightCm, baseWeightKg, dateOfBirth, gender]);
+  }, [heightCm, currentHealth, dateOfBirth, gender]);
 
   const completenessPercentage = useMemo(() => {
     let score = 20;
@@ -239,9 +247,9 @@ const [oldPassword, setOldPassword] = useState("");
         address: address.trim(),
         occupation: occupation.trim(),
         avatar_url: avatarUrl.trim(),
-        height_cm: parseFloat(heightCm) || undefined,
-        base_weight_kg: parseFloat(baseWeightKg) || undefined,
-        target_weight_kg: parseFloat(targetWeightKg) || undefined,
+        height_cm: heightCm === '' ? null : Number(heightCm),
+        base_weight_kg: baseWeightKg === '' ? null : Number(baseWeightKg),
+        target_weight_kg: targetWeightKg === '' ? null : Number(targetWeightKg),
         blood_type: bloodType,
         activity_level: activityLevel,
         chronic_conditions: chronicConditions,
@@ -381,7 +389,7 @@ const [oldPassword, setOldPassword] = useState("");
                   Cân nặng/Cao
                 </span>
                 <span className="text-base font-bold text-slate-800">
-                  {baseWeightKg || "--"}kg / {heightCm || "--"}cm
+                  {currentHealth.weight?.value ?? "--"}kg / {heightCm || "--"}cm
                 </span>
               </div>
               <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-100">
@@ -688,7 +696,7 @@ const [oldPassword, setOldPassword] = useState("");
                             </span>
                             <span className="text-sm text-slate-400 font-medium">kg/m²</span>
                             <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md ml-3 ${
-                              calculatedBiometrics.bmi <= 22.9 && calculatedBiometrics.bmi >= 18.5 
+                              calculatedBiometrics.age >= 18 && calculatedBiometrics.bmi < 25 && calculatedBiometrics.bmi >= 18.5
                                 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
                                 : "bg-slate-800 text-slate-300 border border-slate-700"
                             }`}>
@@ -698,34 +706,41 @@ const [oldPassword, setOldPassword] = useState("");
                         </div>
                         <div className="text-left sm:text-right sm:border-l sm:border-slate-800 sm:pl-8">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                            Cân nặng lý tưởng
+                            Khoảng cân nặng theo BMI 18,5–24,9
                           </span>
                           <span className="text-2xl font-bold text-white tracking-tight">
-                            {calculatedBiometrics.minIdealWeight} - {calculatedBiometrics.maxIdealWeight} kg
+                            {calculatedBiometrics.minIdealWeight ? `${calculatedBiometrics.minIdealWeight} - ${calculatedBiometrics.maxIdealWeight} kg` : 'Chưa đủ thông tin người lớn'}
                           </span>
                           <span className="text-sm font-medium text-slate-400 block mt-2">
-                            BMR: {calculatedBiometrics.bmr} kcal/ngày
+                            BMR ước tính: {calculatedBiometrics.bmr ? `${calculatedBiometrics.bmr} kcal/ngày` : 'Chưa đủ dữ liệu phù hợp'}
                           </span>
                         </div>
                       </div>
+                      <p className="relative mt-4 text-xs leading-relaxed text-slate-400">
+                        BMI là cân nặng chia bình phương chiều cao, chỉ dùng sàng lọc; các khoảng trên dành cho người lớn, cần đánh giá riêng khi mang thai hoặc có bệnh nền. BMR ước tính năng lượng lúc nghỉ theo Mifflin–St Jeor (nghiên cứu người 19–78 tuổi), không phải lượng ăn được chỉ định.
+                        {' '}<a className="underline" href="https://www.who.int/data/nutrition/nlis/info/malnutrition-in-women" target="_blank" rel="noreferrer">WHO: phân nhóm BMI (không nêu ngày cập nhật)</a>
+                        {' · '}<a className="underline" href="https://pubmed.ncbi.nlm.nih.gov/2305711/" target="_blank" rel="noreferrer">Mifflin và cộng sự, 02/1990</a>
+                        {' · '}Nguồn kiểm tra ngày 10/10/2026.
+                      </p>
                     </div>
 
+                    <DataStatus error={healthError} onRetry={fetchCurrentHealth} />
+                    <HealthDataStatus current={currentHealth} />
+                    <Link to="/health?record=1" className="text-primary-700 underline text-sm">Ghi nhận cân nặng hiện tại — thêm số đo mới, giữ lịch sử</Link>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                       <Input
-                        label="Chiều cao (cm) *"
+                        label="Chiều cao (cm)"
                         type="number"
                         step="0.5"
-                        required
                         value={heightCm}
                         onChange={(e) => setHeightCm(e.target.value)}
                         placeholder="170"
                         leftIcon={<Scale className="w-4 h-4 text-slate-400" />}
                       />
                       <Input
-                        label="Cân nặng (kg) *"
+                        label="Cân nặng ban đầu (kg)"
                         type="number"
                         step="0.1"
-                        required
                         value={baseWeightKg}
                         onChange={(e) => setBaseWeightKg(e.target.value)}
                         placeholder="65"

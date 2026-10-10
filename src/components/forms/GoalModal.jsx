@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal } from "../common/Modal";
 import { Input } from "../common/Input";
 import { Button } from "../common/Button";
-import { goalsApi } from "../../api/client";
+import { goalsApi, healthApi } from "../../api/client";
+import { DataStatus } from '../common/DataStatus';
+import { Link } from 'react-router-dom';
+import { displayTime, isStale } from '../../utils/health';
 import { useToast } from "../../context/ToastContext";
 export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
   const { success, error } = useToast();
@@ -12,15 +15,33 @@ export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
     initialData?.metric_type || "weight",
   );
   const [startValue, setStartValue] = useState(
-    initialData?.start_value ? String(initialData.start_value) : "70",
+    initialData?.start_value != null ? String(initialData.start_value) : "",
   );
   const [targetValue, setTargetValue] = useState(
-    initialData?.target_value ? String(initialData.target_value) : "65",
+    initialData?.target_value != null ? String(initialData.target_value) : "",
   );
   const [currentValue, setCurrentValue] = useState(
-    initialData?.current_value ? String(initialData.current_value) : "68.5",
+    initialData?.current_value != null ? String(initialData.current_value) : "",
   );
   const [unit, setUnit] = useState(initialData?.unit || "kg");
+  const [snapshot, setSnapshot] = useState(null), [fetching, setFetching] = useState(false), [loadError, setLoadError] = useState('');
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle(initialData?.title ?? ''); setMetricType(initialData?.metric_type ?? 'weight');
+    setStartValue(initialData?.start_value != null ? String(initialData.start_value) : '');
+    setTargetValue(initialData?.target_value != null ? String(initialData.target_value) : '');
+    setCurrentValue(initialData?.current_value != null ? String(initialData.current_value) : '');
+    setUnit(initialData?.unit ?? 'kg');
+    let active = true;
+    setFetching(true); setLoadError('');
+    healthApi.getLatest().then(res => { if (!active) return; if (res.success) setSnapshot(res.data); else setLoadError(res.message); setFetching(false); });
+    return () => { active = false; };
+  }, [isOpen, initialData]);
+  useEffect(() => {
+    if (initialData) return;
+    const value = snapshot?.current?.[metricType === 'blood_pressure' ? 'systolic' : metricType]?.value ?? snapshot?.current?.[metricType]?.value;
+    setStartValue(value != null ? String(value) : ''); setCurrentValue(value != null ? String(value) : '');
+  }, [snapshot, metricType, initialData]);
   const handleMetricTypeChange = (type) => {
     setMetricType(type);
     if (type === "weight") setUnit("kg");
@@ -28,6 +49,7 @@ export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
     else if (type === "heart_rate") setUnit("bpm");
     else if (type === "exercise") setUnit("phút");
   };
+  const referenceMetric = snapshot?.current?.[metricType === 'blood_pressure' ? 'systolic' : metricType] ?? snapshot?.current?.[metricType];
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -35,7 +57,7 @@ export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
       if (initialData?.id) {
         const res = await goalsApi.update(initialData.id, {
           title,
-          current_value: parseFloat(currentValue),
+          ...(metricType === 'exercise' ? { current_value: Number(currentValue) } : {}),
           target_value: parseFloat(targetValue),
         });
         if (res.success && res.data) {
@@ -51,7 +73,7 @@ export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
           metric_type: metricType,
           start_value: parseFloat(startValue),
           target_value: parseFloat(targetValue),
-          current_value: parseFloat(currentValue),
+          ...(metricType === 'exercise' ? { current_value: Number(currentValue) } : {}),
           unit,
         });
         if (res.success && res.data) {
@@ -79,6 +101,9 @@ export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
     >
       {" "}
       <form onSubmit={handleSubmit} className="space-y-4">
+        <DataStatus loading={fetching} error={loadError} />
+        {!initialData && metricType !== 'exercise' && !fetching && !referenceMetric && <p className="text-sm text-amber-800">Chưa có số đo cho chỉ số này. <Link className="underline" to="/health?record=1">Ghi nhận trước khi tạo mục tiêu</Link>.</p>}
+        {referenceMetric && <p className="text-xs text-slate-600">Số đo tham chiếu: {displayTime(referenceMetric.recorded_at)}. {isStale(referenceMetric.recorded_at) && 'Số đo đã cũ; nên đo lại trước khi đặt mục tiêu.'} Mốc bắt đầu có thể kiểm tra và điều chỉnh trước khi lưu. Huyết áp sử dụng tâm thu.</p>}
         {" "}
         <Input
           label="Tên mục tiêu"
@@ -133,6 +158,8 @@ export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
             step="0.1"
             required
             value={currentValue}
+            readOnly={metricType !== 'exercise'}
+            helperText={metricType !== 'exercise' ? 'Tự đồng bộ từ số đo mới nhất; cập nhật tại Chỉ số sinh tồn.' : 'Nhập thời lượng vận động thực tế.'}
             onChange={(e) => setCurrentValue(e.target.value)}
           />{" "}
           <Input
@@ -150,7 +177,7 @@ export const GoalModal = ({ isOpen, onClose, onSuccess, initialData }) => {
             {" "}
             Hủy{" "}
           </Button>{" "}
-          <Button variant="primary" size="md" type="submit" isLoading={loading}>
+          <Button variant="primary" size="md" type="submit" isLoading={loading} disabled={fetching || !!loadError || (!initialData && metricType !== 'exercise' && !referenceMetric)}>
             {" "}
             {initialData ? "Lưu cập nhật" : "Tạo mục tiêu"}{" "}
           </Button>{" "}
